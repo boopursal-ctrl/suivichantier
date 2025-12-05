@@ -2,6 +2,7 @@
 
 
 
+
 import React, { useState } from 'react';
 import { useData } from '../contexts/DataContext';
 import { LigneCout, AffectationMonteur, Versement, TypeCout, Chantier, MonteurLocal } from '../types';
@@ -453,7 +454,7 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
                        <div className="flex flex-wrap gap-4 md:gap-8 text-sm">
                           <div className="bg-gray-50 px-3 py-1 rounded">
                              <p className="text-xs text-gray-500">Période</p>
-                             <p className="font-medium">{formatDate(worker.date_entree)} -> {formatDate(worker.date_sortie)}</p>
+                             <p className="font-medium">{formatDate(worker.date_entree)} → {formatDate(worker.date_sortie)}</p>
                           </div>
                           <div>
                              <p className="text-xs text-gray-500">Jours</p>
