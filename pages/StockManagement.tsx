@@ -331,7 +331,7 @@ const StockManagement: React.FC = () => {
                            onClick={() => openMovementModal('SORTIE', article.id_article)}
                            className="flex-1 py-1.5 text-xs font-bold text-red-700 bg-red-100 hover:bg-red-200 rounded transition-colors text-center"
                          >
-                           -> Sortie
+                           → Sortie
                          </button>
                       </div>
                    </div>
