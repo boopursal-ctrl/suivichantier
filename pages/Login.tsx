@@ -35,8 +35,8 @@ const Login: React.FC = () => {
     <div className="min-h-screen bg-gray-100 flex flex-col justify-center items-center p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
         <div className="bg-white p-8 text-center border-b border-gray-100">
-          <div className="flex justify-center mb-6 scale-125">
-             <Logo3F />
+          <div className="flex justify-center mb-6">
+             <Logo3F className="w-full max-w-[240px]" />
           </div>
           <h1 className="text-xl font-bold text-gray-800 tracking-tight">Espace de Gestion</h1>
           <p className="text-gray-500 mt-2 text-sm">Connectez-vous à votre compte</p>
