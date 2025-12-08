@@ -38,7 +38,6 @@ const Login: React.FC = () => {
           <div className="flex justify-center mb-6">
              <Logo3F className="w-full max-w-[240px]" />
           </div>
-          <h1 className="text-xl font-bold text-gray-800 tracking-tight">Espace de Gestion</h1>
           <p className="text-gray-500 mt-2 text-sm">Connectez-vous à votre compte</p>
         </div>
 
@@ -58,7 +57,7 @@ const Login: React.FC = () => {
                 type="email" 
                 required
                 className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:outline-none transition-shadow"
-                placeholder="nom@entreprise.ma"
+                placeholder="nom@3findustrie.com"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
               />
@@ -99,7 +98,7 @@ const Login: React.FC = () => {
           </div>
         </form>
       </div>
-      <p className="mt-8 text-gray-400 text-sm">&copy; 2024 3F INDUSTRIE - BTP Manager</p>
+      <p className="mt-8 text-gray-400 text-sm">&copy; 2025 3F INDUSTRIE</p>
     </div>
   );
 };
