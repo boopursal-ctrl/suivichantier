@@ -1,136 +1,105 @@
+
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { Lock, Mail, AlertCircle, Loader2 } from 'lucide-react';
+import { Logo3F } from '../components/Layout';
 
 const Login: React.FC = () => {
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError('');
-
+    setLoading(true);
+    
     try {
-      const result = await login(email, password);
-      
-      if (result.success) {
-        console.log('Connexion réussie, redirection en cours...');
-        // La redirection se fait automatiquement via l'état d'authentification
-        // Ajouter un petit délai pour laisser le temps à l'état de se mettre à jour
-        setTimeout(() => {
-          window.location.reload(); // Forcer un rechargement pour s'assurer que tout est à jour
-        }, 500);
-      } else {
-        setError(result.message || 'Erreur de connexion');
+      // await is crucial here to wait for the result
+      const success = await login(email, password);
+      if (!success) {
+        // If login returns false, it usually means credentials were wrong
+        setError('Email ou mot de passe incorrect.');
       }
-    } catch (err: any) {
-      setError(err.message || 'Erreur de connexion');
-      console.error('Erreur de connexion:', err);
+      // If success is true, the AuthContext state updates and App.tsx redirects automatically
+    } catch (err) {
+      setError('Une erreur technique est survenue.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-2xl shadow-xl">
-        <div className="text-center">
-          <div className="mx-auto h-16 w-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
-            <svg className="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-            </svg>
+    <div className="min-h-screen bg-gray-100 flex flex-col justify-center items-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+        <div className="bg-white p-8 text-center border-b border-gray-100">
+          <div className="flex justify-center mb-6">
+             <Logo3F className="w-full max-w-[240px]" />
           </div>
-          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
-            3F INDUSTRIE
-          </h2>
-          <p className="mt-2 text-sm text-gray-600">
-            Connectez-vous à votre espace professionnel
-          </p>
+          <h1 className="text-xl font-bold text-gray-800 tracking-tight">Espace de Gestion</h1>
+          <p className="text-gray-500 mt-2 text-sm">Connectez-vous à votre compte</p>
         </div>
-        
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                Adresse email
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                className="appearance-none relative block w-full px-4 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm transition-colors"
-                placeholder="votre@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={loading}
-              />
-            </div>
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                Mot de passe
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                className="appearance-none relative block w-full px-4 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm transition-colors"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={loading}
-              />
-            </div>
-          </div>
 
+        <form onSubmit={handleSubmit} className="p-8 space-y-6">
           {error && (
-            <div className="rounded-lg bg-red-50 border border-red-200 p-4">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm font-medium text-red-800">{error}</p>
-                </div>
-              </div>
+            <div className="bg-red-50 text-red-600 p-3 rounded-lg flex items-center text-sm font-medium">
+              <AlertCircle size={16} className="mr-2 flex-shrink-0" />
+              {error}
             </div>
           )}
 
           <div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg"
-            >
-              {loading ? (
-                <div className="flex items-center">
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Connexion en cours...
-                </div>
-              ) : (
-                'Se connecter'
-              )}
-            </button>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email Professionnel</label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input 
+                type="email" 
+                required
+                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:outline-none transition-shadow"
+                placeholder="nom@entreprise.ma"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Mot de passe</label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input 
+                type="password" 
+                required
+                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:outline-none transition-shadow"
+                placeholder="••••••••"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <button 
+            type="submit" 
+            disabled={loading}
+            className="w-full py-3 bg-red-700 text-white rounded-xl font-bold text-lg hover:bg-red-800 shadow-md transition-all hover:scale-[1.02] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="animate-spin mr-2 h-5 w-5" /> Connexion...
+              </>
+            ) : (
+              'Se Connecter'
+            )}
+          </button>
+
+          <div className="text-center text-xs text-gray-400 mt-4">
+             En cas de problème d'accès, contactez l'administrateur.
           </div>
         </form>
-        
-        <div className="text-center pt-4 border-t border-gray-200">
-          <p className="text-xs text-gray-500">
-            © 2024 3F INDUSTRIE. Tous droits réservés.
-          </p>
-        </div>
       </div>
+      <p className="mt-8 text-gray-400 text-sm">&copy; 2024 3F INDUSTRIE - BTP Manager</p>
     </div>
   );
 };
