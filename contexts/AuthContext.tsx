@@ -4,7 +4,7 @@ import { supabase } from '../services/supabaseClient';
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, pass: string) => Promise<boolean>;
+  login: (email: string, pass: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
   isAdmin: boolean;
@@ -18,100 +18,155 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Fonction pour sauvegarder l'utilisateur dans localStorage
-  const saveUserToStorage = (userData: User | null) => {
+  // Fonction de débogage
+  const debug = (message: string, data?: any) => {
+    console.log(`🔐 [Auth] ${message}`, data || '');
+  };
+
+  // Fonction pour stocker la session de manière persistante
+  const storeSession = (userData: User | null, sessionData: any = null) => {
     try {
       if (userData) {
+        // Stocker l'utilisateur
         localStorage.setItem('user', JSON.stringify(userData));
-        localStorage.setItem('last_login', Date.now().toString());
-      } else {
-        localStorage.removeItem('user');
-        localStorage.removeItem('last_login');
+        localStorage.setItem('auth_time', Date.now().toString());
+        debug('User stored in localStorage', { email: userData.email });
+      }
+      
+      if (sessionData) {
+        // Stocker les tokens Supabase
+        localStorage.setItem('supabase.auth.token', JSON.stringify({
+          access_token: sessionData.access_token,
+          refresh_token: sessionData.refresh_token,
+          expires_at: sessionData.expires_at
+        }));
       }
     } catch (error) {
-      console.error('Erreur de sauvegarde dans localStorage:', error);
+      console.error('Error storing session:', error);
     }
   };
 
-  // Fonction pour restaurer l'utilisateur depuis localStorage
-  const restoreUserFromStorage = (): User | null => {
+  // Fonction pour récupérer la session persistante
+  const restoreSession = (): User | null => {
     try {
       const storedUser = localStorage.getItem('user');
-      const lastLogin = localStorage.getItem('last_login');
+      const authTime = localStorage.getItem('auth_time');
       
-      if (storedUser && lastLogin) {
-        // Vérifier si la session n'est pas trop ancienne (24h max)
-        const loginTime = parseInt(lastLogin, 10);
+      if (storedUser && authTime) {
+        const user = JSON.parse(storedUser);
+        const time = parseInt(authTime);
         const now = Date.now();
-        const maxAge = 24 * 60 * 60 * 1000; // 24 heures
+        const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 jours max
         
-        if (now - loginTime < maxAge) {
-          return JSON.parse(storedUser);
+        // Vérifier si la session n'est pas trop vieille
+        if (now - time < maxAge) {
+          debug('User restored from localStorage', { email: user.email });
+          return user;
         } else {
-          // Session expirée, nettoyer
+          debug('Session expired, cleaning up');
           localStorage.removeItem('user');
-          localStorage.removeItem('last_login');
+          localStorage.removeItem('auth_time');
+          localStorage.removeItem('supabase.auth.token');
         }
       }
     } catch (error) {
-      console.error('Erreur de restauration depuis localStorage:', error);
+      console.error('Error restoring session:', error);
     }
     return null;
   };
 
   // Vérifier la session au chargement
   useEffect(() => {
-    const checkSession = async () => {
+    const initializeAuth = async () => {
+      debug('Initializing auth...');
       setLoading(true);
       
-      // 1. Essayer de restaurer depuis localStorage d'abord (pour un chargement rapide)
-      const storedUser = restoreUserFromStorage();
-      if (storedUser) {
-        setUser(storedUser);
+      // 1. Essayer de restaurer depuis localStorage (pour un chargement instantané)
+      const restoredUser = restoreSession();
+      if (restoredUser) {
+        debug('Setting restored user immediately');
+        setUser(restoredUser);
         setLoading(false);
-        console.log('Utilisateur restauré depuis localStorage');
       }
       
-      // 2. Vérifier la session Supabase (pour la validité réelle)
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (session?.user) {
-        await fetchProfile(session.user.id, session.user.email!);
-      } else {
-        // Si pas de session Supabase mais localStorage disait le contraire, nettoyer
-        if (storedUser) {
-          setUser(null);
-          saveUserToStorage(null);
-          localStorage.removeItem('user');
-          localStorage.removeItem('last_login');
+      // 2. Vérifier la session Supabase
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          debug('Supabase session error:', error.message);
         }
+        
+        if (session?.user) {
+          debug('Supabase session found', { user: session.user.email });
+          await fetchProfile(session.user.id, session.user.email!);
+        } else {
+          debug('No Supabase session found');
+          // Si Supabase dit qu'il n'y a pas de session mais localStorage en avait une, nettoyer
+          if (restoredUser) {
+            debug('Clearing invalid session from localStorage');
+            setUser(null);
+            localStorage.removeItem('user');
+            localStorage.removeItem('auth_time');
+            localStorage.removeItem('supabase.auth.token');
+          }
+          setLoading(false);
+        }
+      } catch (error) {
+        debug('Error checking session:', error);
         setLoading(false);
       }
     };
-    
-    checkSession();
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed:', event);
-      
-      if (event === 'SIGNED_IN' && session?.user) {
-        await fetchProfile(session.user.id, session.user.email!);
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-        saveUserToStorage(null);
-        setLoading(false);
-      } else if (event === 'TOKEN_REFRESHED') {
-        // Rafraîchir le dernier login
-        localStorage.setItem('last_login', Date.now().toString());
+    initializeAuth();
+
+    // Écouter les changements d'authentification
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        debug(`Auth state changed: ${event}`);
+        
+        switch (event) {
+          case 'SIGNED_IN':
+            if (session?.user) {
+              debug('User signed in', { email: session.user.email });
+              await fetchProfile(session.user.id, session.user.email!);
+            }
+            break;
+            
+          case 'SIGNED_OUT':
+            debug('User signed out');
+            setUser(null);
+            localStorage.removeItem('user');
+            localStorage.removeItem('auth_time');
+            localStorage.removeItem('supabase.auth.token');
+            setLoading(false);
+            break;
+            
+          case 'TOKEN_REFRESHED':
+            debug('Token refreshed');
+            if (session) {
+              localStorage.setItem('auth_time', Date.now().toString());
+            }
+            break;
+            
+          case 'USER_UPDATED':
+            debug('User updated');
+            if (session?.user) {
+              await fetchProfile(session.user.id, session.user.email!);
+            }
+            break;
+        }
       }
-    });
+    );
 
     return () => {
-      authListener.subscription.unsubscribe();
+      subscription.unsubscribe();
     };
   }, []);
 
   const fetchProfile = async (userId: string, email: string) => {
+    debug('Fetching profile for user:', { userId, email });
+    
     try {
       let { data, error } = await supabase
         .from('profiles')
@@ -119,30 +174,32 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .eq('id', userId)
         .single();
 
-      // AUTO-PROVISIONING: Si le profil n'existe pas, on le crée automatiquement
+      // AUTO-PROVISIONING: Créer le profil s'il n'existe pas
       if (!data && (error?.code === 'PGRST116' || !error)) {
-        console.log("Profil introuvable, création automatique...");
+        debug('Profile not found, auto-creating...');
         
         const newProfile = {
-            id: userId,
-            email: email,
-            name: email.split('@')[0],
-            role: 'ADMIN', // On donne ADMIN par défaut pour débloquer l'accès
-            is_active: true,
-            allowed_modules: ['dashboard', 'chantiers', 'stock', 'clients', 'monteurs', 'rapports', 'admin']
+          id: userId,
+          email: email,
+          name: email.split('@')[0],
+          role: 'ADMIN',
+          is_active: true,
+          allowed_modules: ['dashboard', 'chantiers', 'stock', 'clients', 'monteurs', 'rapports', 'admin']
         };
 
         const { data: createdProfile, error: createError } = await supabase
-            .from('profiles')
-            .insert([newProfile])
-            .select()
-            .single();
-            
+          .from('profiles')
+          .insert([newProfile])
+          .select()
+          .single();
+          
         if (createError) {
-            console.error("Erreur création profil auto:", createError);
-        } else {
-            data = createdProfile;
+          debug('Error creating profile:', createError);
+          throw createError;
         }
+        
+        data = createdProfile;
+        debug('Profile created successfully');
       }
 
       if (data) {
@@ -156,100 +213,139 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           allowedModules: data.allowed_modules || ['dashboard']
         };
         
-        // Bloquer l'accès si le compte est désactivé
+        debug('Profile loaded', { user: appUser.email, role: appUser.role });
+        
+        // Vérifier si le compte est actif
         if (appUser.isActive) {
-            setUser(appUser);
-            saveUserToStorage(appUser);
-            localStorage.setItem('last_login', Date.now().toString());
+          // Récupérer la session actuelle pour stockage
+          const { data: { session } } = await supabase.auth.getSession();
+          
+          setUser(appUser);
+          storeSession(appUser, session);
+          debug('User set in state and stored');
         } else {
-            alert("Votre compte a été désactivé par un administrateur.");
-            await supabase.auth.signOut();
-            setUser(null);
-            saveUserToStorage(null);
+          debug('Account is inactive');
+          alert("Votre compte a été désactivé par un administrateur.");
+          await supabase.auth.signOut();
+          setUser(null);
+          localStorage.clear();
         }
       }
     } catch (error) {
-      console.error("Erreur récupération profil:", error);
+      debug('Error fetching profile:', error);
     } finally {
       setLoading(false);
+      debug('Loading set to false');
     }
   };
 
-  const login = async (email: string, pass: string): Promise<boolean> => {
+  const login = async (email: string, pass: string): Promise<{ success: boolean; message?: string }> => {
+    debug('Login attempt', { email });
+    setLoading(true);
+    
     try {
-      setLoading(true);
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password: pass,
       });
 
       if (error) {
-        console.error("Erreur login Supabase:", error.message);
-        setLoading(false);
-        return false;
+        debug('Login error:', error.message);
+        return { 
+          success: false, 
+          message: error.message === 'Invalid login credentials' 
+            ? 'Email ou mot de passe incorrect' 
+            : error.message 
+        };
       }
 
-      if (data.user) {
-        // Attendre que le profil soit chargé (géré par fetchProfile)
-        // Ajouter un petit délai pour s'assurer que tout est chargé
-        await new Promise(resolve => setTimeout(resolve, 500));
-        return true;
+      if (data.user && data.session) {
+        debug('Login successful, waiting for profile...');
+        // Le profil sera chargé par onAuthStateChange
+        // Attendre un peu pour laisser le temps au profil de se charger
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return { success: true };
       }
       
-      setLoading(false);
-      return false;
-    } catch (e) {
-      console.error(e);
-      setLoading(false);
-      return false;
-    }
-  };
-
-  const logout = async () => {
-    try {
-      setLoading(true);
-      await supabase.auth.signOut();
-      setUser(null);
-      saveUserToStorage(null);
-      localStorage.clear();
-      
-      // Forcer un rechargement complet pour nettoyer l'état
-      window.location.href = '/';
-    } catch (error) {
-      console.error('Erreur lors de la déconnexion:', error);
+      return { success: false, message: 'Erreur inconnue' };
+    } catch (error: any) {
+      debug('Login exception:', error);
+      return { success: false, message: error.message || 'Erreur de connexion' };
     } finally {
       setLoading(false);
     }
   };
 
-  const hasModuleAccess = (module: AppModule): boolean => {
-    if (!user) return false;
-    // Admin a accès à tout
-    if (user.role === 'ADMIN') return true;
-    // Sinon vérifier les permissions
-    return user.allowedModules?.includes(module) || false;
+  const logout = async () => {
+    debug('Logging out...');
+    try {
+      await supabase.auth.signOut();
+      setUser(null);
+      localStorage.clear();
+      debug('Logout successful');
+      
+      // Forcer un rechargement pour nettoyer tout l'état
+      window.location.href = '/';
+    } catch (error) {
+      debug('Logout error:', error);
+    }
   };
 
-  // Afficher un loader pendant le chargement initial
+  const hasModuleAccess = (module: AppModule): boolean => {
+    if (!user) {
+      debug('hasModuleAccess: No user');
+      return false;
+    }
+    
+    // L'admin a accès à tout
+    if (user.role === 'ADMIN') {
+      debug(`hasModuleAccess: Admin access granted to ${module}`);
+      return true;
+    }
+    
+    const hasAccess = user.allowedModules?.includes(module) || false;
+    debug(`hasModuleAccess: ${module} = ${hasAccess}`);
+    return hasAccess;
+  };
+
+  // Afficher un loader pendant le chargement
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen">
-        <div className="loader border-4 border-gray-200 border-t-blue-600 rounded-full w-12 h-12 animate-spin"></div>
-        <p className="mt-4 text-gray-600">Chargement de la session...</p>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-gray-100">
+        <div className="relative">
+          <div className="w-20 h-20 border-4 border-blue-100 rounded-full"></div>
+          <div className="absolute top-0 left-0 w-20 h-20 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+            <div className="w-10 h-10 bg-blue-600 rounded-full animate-pulse"></div>
+          </div>
+        </div>
+        <div className="mt-8 text-center">
+          <h2 className="text-xl font-semibold text-gray-800">3F INDUSTRIE</h2>
+          <p className="mt-2 text-gray-600">Chargement de votre session...</p>
+          <p className="mt-1 text-sm text-gray-500">Vérification de l'authentification</p>
+        </div>
       </div>
     );
   }
 
+  const value = {
+    user,
+    login,
+    logout,
+    isAuthenticated: !!user,
+    isAdmin: user?.role === 'ADMIN',
+    hasModuleAccess,
+    loading
+  };
+
+  debug('AuthProvider rendering', { 
+    isAuthenticated: !!user, 
+    userEmail: user?.email,
+    loading 
+  });
+
   return (
-    <AuthContext.Provider value={{
-      user,
-      login,
-      logout,
-      isAuthenticated: !!user,
-      isAdmin: user?.role === 'ADMIN',
-      hasModuleAccess,
-      loading
-    }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
