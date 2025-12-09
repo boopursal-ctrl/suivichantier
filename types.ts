@@ -32,7 +32,7 @@ export interface Client {
 }
 
 export interface Monteur {
-  matricule: string; // ← CHANGÉ: string au lieu de number
+  matricule: number; // ← RESTE number (int4 dans la base)
   nom_monteur: string;
   telephone?: string;
   cin?: string;
