@@ -156,52 +156,83 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   // --- ACTIONS MONTEURS ---
-  const addMonteur = async (monteur: Monteur) => {
-    try {
-      console.log('➕ Adding monteur:', monteur);
-      
-      const { data, error } = await supabase
-        .from('monteurs')
-        .insert([monteur])
-        .select()
-        .single();
+ // Dans DataContext.tsx - Correction de addMonteur
+const addMonteur = async (monteur: Monteur) => {
+  try {
+    console.log('➕ Adding monteur:', monteur);
+    
+    // Préparer les données pour Supabase
+    const monteurData = {
+      ...monteur,
+      // Convertir les chaînes vides en NULL pour les dates
+      date_naissance: monteur.date_naissance || null,
+      date_debut_contrat: monteur.date_debut_contrat || new Date().toISOString().split('T')[0],
+      // S'assurer que tous les champs texte ont des valeurs par défaut
+      cin: monteur.cin || null,
+      telephone: monteur.telephone || null,
+      scan_cin_recto: monteur.scan_cin_recto || null,
+      scan_cin_verso: monteur.scan_cin_verso || null
+    };
 
-      if (error) {
-        console.error('❌ Error adding monteur:', error);
-        throw error;
-      }
-      
-      if (data) {
-        setMonteurs(prev => [...prev, data as Monteur]);
-        console.log('✅ Monteur added successfully');
-      }
-    } catch (error) {
-      console.error('❌ Exception adding monteur:', error);
+    console.log('📤 Prepared data for Supabase:', monteurData);
+    
+    const { data, error } = await supabase
+      .from('monteurs')
+      .insert([monteurData])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('❌ Error adding monteur:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint
+      });
       throw error;
     }
-  };
-
+    
+    if (data) {
+      setMonteurs(prev => [...prev, data as Monteur]);
+      console.log('✅ Monteur added successfully');
+    }
+  } catch (error) {
+    console.error('❌ Exception adding monteur:', error);
+    throw error;
+  }
+};
   const updateMonteur = async (monteur: Monteur) => {
-    try {
-      const { error } = await supabase
-        .from('monteurs')
-        .update(monteur)
-        .eq('matricule', monteur.matricule);
+  try {
+    // Préparer les données pour Supabase
+    const monteurData = {
+      ...monteur,
+      // Convertir les chaînes vides en NULL pour les dates
+      date_naissance: monteur.date_naissance || null,
+      date_debut_contrat: monteur.date_debut_contrat || new Date().toISOString().split('T')[0],
+      cin: monteur.cin || null,
+      telephone: monteur.telephone || null,
+      scan_cin_recto: monteur.scan_cin_recto || null,
+      scan_cin_verso: monteur.scan_cin_verso || null
+    };
 
-      if (error) {
-        console.error('❌ Error updating monteur:', error);
-        throw error;
-      }
-      
-      setMonteurs(prev => prev.map(m => 
-        m.matricule === monteur.matricule ? monteur : m
-      ));
-    } catch (error) {
-      console.error('❌ Exception updating monteur:', error);
+    const { error } = await supabase
+      .from('monteurs')
+      .update(monteurData)
+      .eq('matricule', monteur.matricule);
+
+    if (error) {
+      console.error('❌ Error updating monteur:', error);
       throw error;
     }
-  };
-
+    
+    setMonteurs(prev => prev.map(m => 
+      m.matricule === monteur.matricule ? monteur : m
+    ));
+  } catch (error) {
+    console.error('❌ Exception updating monteur:', error);
+    throw error;
+  }
+};
   const deleteMonteur = async (matricule: number) => {
     try {
       console.log('🗑️ Deleting monteur with matricule:', matricule);
