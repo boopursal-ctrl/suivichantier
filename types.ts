@@ -32,18 +32,20 @@ export interface Client {
 }
 
 export interface Monteur {
-  matricule: number; // 208
-  nom_monteur: string; // OMAR
-  role_monteur?: RoleMonteur; // Chef ou Ouvrier
-  cin?: string; 
-  date_naissance?: string; 
-  telephone?: string; 
-  salaire_jour: number; 
-  type_contrat?: TypeContrat; 
-  date_debut_contrat?: string; 
+  matricule: string; // ← CHANGÉ: string au lieu de number
+  nom_monteur: string;
+  telephone?: string;
+  cin?: string;
+  date_naissance?: string;
+  date_debut_contrat?: string;
+  type_contrat: TypeContrat;
+  role_monteur: RoleMonteur;
+  salaire_jour: number;
   actif: boolean;
-  scan_cin_recto?: string; // URL de l'image
-  scan_cin_verso?: string; // URL de l'image
+  scan_cin_recto?: string;
+  scan_cin_verso?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface LigneCout {
