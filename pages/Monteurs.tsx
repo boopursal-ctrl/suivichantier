@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useData } from '../contexts/DataContext';
 import { Monteur, TypeContrat, RoleMonteur } from '../types';
-import { Search, Plus, FileText, Camera, Printer, Trash2, Edit, Upload, Eye, HardHat, Hammer } from 'lucide-react';
+import { Search, Plus, FileText, Camera, Printer, Trash2, Edit, Upload, Eye, HardHat, Hammer, Loader2 } from 'lucide-react';
 import { formatDate } from '../utils';
 
 const Monteurs: React.FC = () => {
@@ -11,6 +11,7 @@ const Monteurs: React.FC = () => {
   const [editingMonteur, setEditingMonteur] = useState<Monteur | null>(null);
   const [selectedMonteurForContract, setSelectedMonteurForContract] = useState<Monteur | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState<number | null>(null);
 
   // Form State
@@ -23,15 +24,12 @@ const Monteurs: React.FC = () => {
 
   // Rafraîchir les données au chargement
   useEffect(() => {
-    if (refreshData) {
-      refreshData();
-    }
+    refreshData();
   }, []);
 
   const filteredMonteurs = monteurs.filter(m => 
     m.nom_monteur.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    m.matricule.toString().includes(searchTerm) ||
-    (m.cin && m.cin.toLowerCase().includes(searchTerm.toLowerCase()))
+    m.matricule.toString().includes(searchTerm)
   );
 
   const handleOpenModal = (monteur?: Monteur) => {
@@ -55,10 +53,10 @@ const Monteurs: React.FC = () => {
         cin: '',
         telephone: '',
         date_naissance: '',
-        date_debut_contrat: new Date().toISOString().split('T')[0],
         scan_cin_recto: '',
         scan_cin_verso: '',
-        nom_monteur: ''
+        nom_monteur: '',
+        date_debut_contrat: new Date().toISOString().split('T')[0]
       });
     }
     setIsModalOpen(true);
@@ -66,12 +64,13 @@ const Monteurs: React.FC = () => {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (!formData.nom_monteur || !formData.matricule) {
       alert('Veuillez remplir le nom et le matricule');
       return;
     }
 
+    setIsSaving(true);
+    
     try {
       const monteurData: Monteur = {
         matricule: Number(formData.matricule),
@@ -80,8 +79,8 @@ const Monteurs: React.FC = () => {
         cin: formData.cin || '',
         date_naissance: formData.date_naissance || '',
         date_debut_contrat: formData.date_debut_contrat || new Date().toISOString().split('T')[0],
-        type_contrat: formData.type_contrat || 'CDD',
-        role_monteur: formData.role_monteur || 'OUVRIER',
+        type_contrat: formData.type_contrat as TypeContrat || 'CDD',
+        role_monteur: formData.role_monteur as RoleMonteur || 'OUVRIER',
         salaire_jour: Number(formData.salaire_jour) || 100,
         actif: formData.actif !== false,
         scan_cin_recto: formData.scan_cin_recto || '',
@@ -103,12 +102,13 @@ const Monteurs: React.FC = () => {
       });
       
       // Rafraîchir les données
-      if (refreshData) {
-        refreshData();
-      }
+      await refreshData();
+      
     } catch (error) {
       console.error('Erreur lors de l\'enregistrement:', error);
       alert('Erreur lors de l\'enregistrement. Voir la console pour plus de détails.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -121,9 +121,7 @@ const Monteurs: React.FC = () => {
     try {
       await deleteMonteur(matricule);
       // Rafraîchir les données
-      if (refreshData) {
-        await refreshData();
-      }
+      await refreshData();
     } catch (error) {
       console.error('Erreur lors de la suppression:', error);
       alert('Erreur lors de la suppression. Voir la console pour plus de détails.');
@@ -174,7 +172,8 @@ const Monteurs: React.FC = () => {
         </div>
         <button 
           onClick={() => handleOpenModal()}
-          className="flex items-center px-4 py-2 bg-red-700 text-white rounded-lg hover:bg-red-800 shadow-sm transition-colors font-bold"
+          disabled={loadingData}
+          className="flex items-center px-4 py-2 bg-red-700 text-white rounded-lg hover:bg-red-800 shadow-sm transition-colors font-bold disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Plus className="w-5 h-5 mr-2" />
           Ajouter Collaborateur
@@ -191,6 +190,7 @@ const Monteurs: React.FC = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Rechercher par nom, matricule ou CIN..." 
             className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+            disabled={loadingData}
           />
         </div>
       </div>
@@ -262,15 +262,17 @@ const Monteurs: React.FC = () => {
                           <div className="flex justify-end gap-2">
                             <button 
                               onClick={() => handleGenerateContract(monteur)} 
-                              className="p-2 text-gray-500 hover:text-indigo-600 bg-gray-50 hover:bg-indigo-50 rounded" 
+                              className="p-2 text-gray-500 hover:text-indigo-600 bg-gray-50 hover:bg-indigo-50 rounded disabled:opacity-50 disabled:cursor-not-allowed" 
                               title="Générer Contrat"
+                              disabled={isBeingDeleted}
                             >
                               <FileText className="w-4 h-4" />
                             </button>
                             <button 
                               onClick={() => handleOpenModal(monteur)} 
-                              className="p-2 text-gray-500 hover:text-blue-600 bg-gray-50 hover:bg-blue-50 rounded" 
+                              className="p-2 text-gray-500 hover:text-blue-600 bg-gray-50 hover:bg-blue-50 rounded disabled:opacity-50 disabled:cursor-not-allowed" 
                               title="Modifier"
+                              disabled={isBeingDeleted}
                             >
                               <Edit className="w-4 h-4" />
                             </button>
@@ -298,7 +300,7 @@ const Monteurs: React.FC = () => {
         </div>
       </div>
 
-      {/* Modal Ajout/Modif Monteur - La partie formulaire reste identique */}
+      {/* Modal Ajout/Modif Monteur */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl overflow-hidden max-h-[90vh] overflow-y-auto">
@@ -306,7 +308,13 @@ const Monteurs: React.FC = () => {
               <h3 className="font-bold text-lg text-gray-800">
                 {editingMonteur ? 'Modifier Collaborateur' : 'Nouveau Collaborateur'}
               </h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600">&times;</button>
+              <button 
+                onClick={() => setIsModalOpen(false)} 
+                className="text-gray-400 hover:text-gray-600 disabled:opacity-50"
+                disabled={isSaving}
+              >
+                &times;
+              </button>
             </div>
             
             <div className="p-6">
@@ -321,25 +329,263 @@ const Monteurs: React.FC = () => {
                         <input 
                           type="number" 
                           required
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-50"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-50 disabled:bg-gray-100"
                           value={formData.matricule || ''}
                           onChange={e => setFormData({...formData, matricule: parseInt(e.target.value)})}
-                          disabled={!!editingMonteur} // Empêche la modification du matricule en édition
+                          disabled={!!editingMonteur || isSaving}
                         />
                       </div>
-                      {/* ... reste du formulaire inchangé ... */}
+                      <div className="col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Nom Complet</label>
+                        <input 
+                          type="text" 
+                          required
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 disabled:bg-gray-100"
+                          value={formData.nom_monteur || ''}
+                          onChange={e => setFormData({...formData, nom_monteur: e.target.value})}
+                          disabled={isSaving}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-gray-800 mb-1 bg-yellow-50 px-2 py-0.5 rounded-md w-fit">Poste / Rôle</label>
+                        <select 
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 font-medium disabled:bg-gray-100"
+                          value={formData.role_monteur || 'OUVRIER'}
+                          onChange={e => setFormData({...formData, role_monteur: e.target.value as RoleMonteur})}
+                          disabled={isSaving}
+                        >
+                          <option value="OUVRIER">👷 Monteur / Ouvrier</option>
+                          <option value="CHEF_CHANTIER">👷‍♂️ Chef de Chantier</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">CIN</label>
+                        <input 
+                          type="text" 
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 uppercase disabled:bg-gray-100"
+                          value={formData.cin || ''}
+                          onChange={e => setFormData({...formData, cin: e.target.value})}
+                          placeholder="Ex: J12345"
+                          disabled={isSaving}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Téléphone</label>
+                        <input 
+                          type="tel" 
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 disabled:bg-gray-100"
+                          value={formData.telephone || ''}
+                          onChange={e => setFormData({...formData, telephone: e.target.value})}
+                          placeholder="06..."
+                          disabled={isSaving}
+                        />
+                      </div>
                    </div>
                 </div>
-                {/* ... reste du modal inchangé ... */}
+
+                {/* Section Documents (New) */}
+                <div>
+                   <h4 className="text-sm font-bold text-gray-900 mb-3 uppercase tracking-wide border-b pb-1 flex items-center">
+                     <Camera className="w-4 h-4 mr-2" /> Documents (Carte Nationale)
+                   </h4>
+                   <div className="grid grid-cols-2 gap-6">
+                      {/* Recto */}
+                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:bg-gray-50 transition-colors relative group">
+                         {formData.scan_cin_recto ? (
+                           <div className="relative">
+                              <img src={formData.scan_cin_recto} alt="CIN Recto" className="h-40 w-full object-cover rounded-md mb-2" />
+                              <button 
+                                type="button"
+                                onClick={() => setFormData({...formData, scan_cin_recto: ''})}
+                                className="absolute top-2 right-2 bg-red-600 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                                disabled={isSaving}
+                              >
+                                <Trash2 size={16}/>
+                              </button>
+                              <span className="text-xs font-semibold text-green-600">CIN Recto chargée</span>
+                           </div>
+                         ) : (
+                           <div className="h-40 flex flex-col items-center justify-center">
+                              <Upload className="w-8 h-8 text-gray-400 mb-2" />
+                              <span className="text-sm font-medium text-gray-600">Ajouter CIN Recto</span>
+                              <input 
+                                type="file" 
+                                accept="image/*"
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                                onChange={(e) => handleFileUpload(e, 'recto')}
+                                disabled={isSaving}
+                              />
+                           </div>
+                         )}
+                      </div>
+
+                      {/* Verso */}
+                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:bg-gray-50 transition-colors relative group">
+                         {formData.scan_cin_verso ? (
+                           <div className="relative">
+                              <img src={formData.scan_cin_verso} alt="CIN Verso" className="h-40 w-full object-cover rounded-md mb-2" />
+                              <button 
+                                type="button"
+                                onClick={() => setFormData({...formData, scan_cin_verso: ''})}
+                                className="absolute top-2 right-2 bg-red-600 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                                disabled={isSaving}
+                              >
+                                <Trash2 size={16}/>
+                              </button>
+                              <span className="text-xs font-semibold text-green-600">CIN Verso chargée</span>
+                           </div>
+                         ) : (
+                           <div className="h-40 flex flex-col items-center justify-center">
+                              <Upload className="w-8 h-8 text-gray-400 mb-2" />
+                              <span className="text-sm font-medium text-gray-600">Ajouter CIN Verso</span>
+                              <input 
+                                type="file" 
+                                accept="image/*"
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                                onChange={(e) => handleFileUpload(e, 'verso')}
+                                disabled={isSaving}
+                              />
+                           </div>
+                         )}
+                      </div>
+                   </div>
+                </div>
+
+                {/* Section Contrat */}
+                <div>
+                  <h4 className="text-sm font-bold text-gray-900 mb-3 uppercase tracking-wide border-b pb-1">Contrat & Salaire</h4>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Salaire Journalier (DH)</label>
+                      <input 
+                        type="number" 
+                        required
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 disabled:bg-gray-100"
+                        value={formData.salaire_jour || 100}
+                        onChange={e => setFormData({...formData, salaire_jour: parseFloat(e.target.value)})}
+                        disabled={isSaving}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Type de Contrat</label>
+                      <select 
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 disabled:bg-gray-100"
+                        value={formData.type_contrat || 'CDD'}
+                        onChange={e => setFormData({...formData, type_contrat: e.target.value as TypeContrat})}
+                        disabled={isSaving}
+                      >
+                        <option value="CDD">CDD</option>
+                        <option value="CDI">CDI</option>
+                        <option value="ANAPEC">ANAPEC</option>
+                        <option value="FREELANCE">Freelance / Journalier</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Date début</label>
+                      <input 
+                        type="date" 
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 disabled:bg-gray-100"
+                        value={formData.date_debut_contrat || ''}
+                        onChange={e => setFormData({...formData, date_debut_contrat: e.target.value})}
+                        disabled={isSaving}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                  <button 
+                    type="button" 
+                    onClick={() => setIsModalOpen(false)} 
+                    className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50"
+                    disabled={isSaving}
+                  >
+                    Annuler
+                  </button>
+                  <button 
+                    type="submit" 
+                    className="px-4 py-2 text-white bg-red-700 rounded-lg hover:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    disabled={isSaving}
+                  >
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Enregistrement...
+                      </>
+                    ) : (
+                      'Enregistrer'
+                    )}
+                  </button>
+                </div>
               </form>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal Contrat - inchangé */}
+      {/* Modal Contrat */}
       {isContractModalOpen && selectedMonteurForContract && (
-        {/* ... modal contrat inchangé ... */}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-3xl h-[85vh] flex flex-col">
+            <div className="flex justify-between items-center p-4 border-b bg-gray-50">
+              <h3 className="font-bold text-lg">Aperçu du Contrat - {selectedMonteurForContract.nom_monteur}</h3>
+              <div className="flex gap-2">
+                 <button onClick={printContract} className="flex items-center px-3 py-1.5 bg-gray-800 text-white rounded text-sm hover:bg-gray-700">
+                   <Printer className="w-4 h-4 mr-2" /> Imprimer
+                 </button>
+                 <button onClick={() => setIsContractModalOpen(false)} className="p-2 text-gray-500 hover:text-gray-800">
+                   &times;
+                 </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-8 bg-gray-50 font-serif text-sm leading-relaxed" id="contract-print-area">
+              <div className="max-w-2xl mx-auto bg-white p-12 shadow-sm min-h-full">
+                <div className="text-center mb-8">
+                  <h1 className="text-2xl font-bold uppercase underline mb-2">Contrat de Travail {selectedMonteurForContract.type_contrat}</h1>
+                  <p className="text-gray-500">Société 3F INDUSTRIE</p>
+                </div>
+
+                <p className="mb-4">Entre les soussignés :</p>
+                
+                <p className="mb-4">
+                  <strong>1. La société 3F INDUSTRIE</strong>, sise à Casablanca, représentée par son Gérant.<br/>
+                  Ci-après dénommée "L'Employeur".
+                </p>
+
+                <p className="mb-4">Et :</p>
+
+                <p className="mb-4">
+                  <strong>2. Monsieur {selectedMonteurForContract.nom_monteur}</strong><br/>
+                  Titulaire de la CIN n° <strong>{selectedMonteurForContract.cin || '______________'}</strong><br/>
+                  Demeurant à ________________________________________<br/>
+                  Ci-après dénommé "Le Salarié".
+                </p>
+
+                <p className="mb-6">Il a été convenu et arrêté ce qui suit :</p>
+
+                <h4 className="font-bold mb-2">Article 1 : Engagement</h4>
+                <p className="mb-4">Le Salarié est engagé en qualité de <strong>{selectedMonteurForContract.role_monteur === 'CHEF_CHANTIER' ? 'Chef de Chantier' : 'Monteur Qualifié'}</strong> à compter du <strong>{formatDate(selectedMonteurForContract.date_debut_contrat || new Date().toISOString())}</strong>.</p>
+
+                <h4 className="font-bold mb-2">Article 2 : Rémunération</h4>
+                <p className="mb-4">Le Salarié percevra un salaire journalier net de <strong>{selectedMonteurForContract.salaire_jour} DH</strong>.</p>
+
+                <h4 className="font-bold mb-2">Article 3 : Lieu de travail</h4>
+                <p className="mb-4">Le lieu de travail est mobile selon les chantiers de la société à travers le Royaume du Maroc.</p>
+
+                <div className="mt-12 flex justify-between">
+                  <div className="text-center">
+                    <p className="font-bold mb-8">L'Employeur</p>
+                    <p className="text-xs text-gray-400">(Cachet et Signature)</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="font-bold mb-8">Le Salarié</p>
+                    <p className="text-xs text-gray-400">(Lu et approuvé)</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
