@@ -1,16 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useData } from '../contexts/DataContext';
 import { Monteur, TypeContrat, RoleMonteur } from '../types';
-import { Search, Plus, FileText, Camera, Printer, Trash2, Edit, Upload, Eye, HardHat, Hammer } from 'lucide-react';
+import { Search, Plus, FileText, Camera, Printer, Trash2, Edit, Upload, Eye, HardHat, Hammer, Loader2 } from 'lucide-react';
 import { formatDate } from '../utils';
 
 const Monteurs: React.FC = () => {
-  const { monteurs, addMonteur, updateMonteur, deleteMonteur, affectations, chantiers } = useData();
+  const { monteurs, addMonteur, updateMonteur, deleteMonteur, loadingData, refreshData } = useData();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isContractModalOpen, setIsContractModalOpen] = useState(false);
   const [editingMonteur, setEditingMonteur] = useState<Monteur | null>(null);
   const [selectedMonteurForContract, setSelectedMonteurForContract] = useState<Monteur | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isSaving, setIsSaving] = useState(false); // ← AJOUTÉ ICI
+  const [isDeleting, setIsDeleting] = useState<number | null>(null);
 
   // Form State
   const [formData, setFormData] = useState<Partial<Monteur>>({
@@ -20,6 +22,11 @@ const Monteurs: React.FC = () => {
     role_monteur: 'OUVRIER'
   });
 
+  // Rafraîchir les données au chargement
+  useEffect(() => {
+    refreshData();
+  }, []);
+
   const filteredMonteurs = monteurs.filter(m => 
     m.nom_monteur.toLowerCase().includes(searchTerm.toLowerCase()) || 
     m.matricule.toString().includes(searchTerm)
@@ -28,11 +35,26 @@ const Monteurs: React.FC = () => {
   const handleOpenModal = (monteur?: Monteur) => {
     if (monteur) {
       setEditingMonteur(monteur);
-      setFormData(monteur);
+      // Convertir NULL en chaîne vide pour les inputs
+      setFormData({
+        ...monteur,
+        date_naissance: monteur.date_naissance || '',
+        cin: monteur.cin || '',
+        telephone: monteur.telephone || '',
+        scan_cin_recto: monteur.scan_cin_recto || '',
+        scan_cin_verso: monteur.scan_cin_verso || ''
+      });
     } else {
       setEditingMonteur(null);
+      
+      // Générer un nouveau matricule
+      const maxMatricule = monteurs.length > 0 
+        ? Math.max(...monteurs.map(m => m.matricule))
+        : 0;
+      
       setFormData({
-        matricule: Math.max(...monteurs.map(m => m.matricule)) + 1,
+        matricule: maxMatricule + 1,
+        nom_monteur: '',
         actif: true,
         salaire_jour: 100,
         type_contrat: 'CDD',
@@ -40,6 +62,7 @@ const Monteurs: React.FC = () => {
         cin: '',
         telephone: '',
         date_naissance: '',
+        date_debut_contrat: new Date().toISOString().split('T')[0],
         scan_cin_recto: '',
         scan_cin_verso: ''
       });
@@ -48,70 +71,88 @@ const Monteurs: React.FC = () => {
   };
 
   const handleSave = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!formData.nom_monteur || !formData.matricule) {
-    alert('Veuillez remplir le nom et le matricule');
-    return;
-  }
-
-  setIsSaving(true);
-  
-  try {
-    const monteurData: Monteur = {
-      matricule: Number(formData.matricule),
-      nom_monteur: formData.nom_monteur,
-      telephone: formData.telephone || null, // ← NULL au lieu de chaîne vide
-      cin: formData.cin || null, // ← NULL au lieu de chaîne vide
-      date_naissance: formData.date_naissance || null, // ← NULL si vide
-      date_debut_contrat: formData.date_debut_contrat || new Date().toISOString().split('T')[0],
-      type_contrat: formData.type_contrat as TypeContrat || 'CDD',
-      role_monteur: formData.role_monteur as RoleMonteur || 'OUVRIER',
-      salaire_jour: Number(formData.salaire_jour) || 100,
-      actif: formData.actif !== false,
-      scan_cin_recto: formData.scan_cin_recto || null, // ← NULL
-      scan_cin_verso: formData.scan_cin_verso || null // ← NULL
-    };
-
-    console.log('📝 Monteur data prepared:', monteurData);
-
-    if (editingMonteur) {
-      await updateMonteur(monteurData);
-    } else {
-      await addMonteur(monteurData);
+    e.preventDefault();
+    if (!formData.nom_monteur || !formData.matricule) {
+      alert('Veuillez remplir le nom et le matricule');
+      return;
     }
+
+    setIsSaving(true); // ← UTILISÉ ICI
     
-    setIsModalOpen(false);
-    setFormData({
-      actif: true,
-      salaire_jour: 100,
-      type_contrat: 'CDD',
-      role_monteur: 'OUVRIER'
-    });
-    
-    // Rafraîchir les données
-    await refreshData();
-    
-  } catch (error: any) {
-    console.error('❌ Erreur lors de l\'enregistrement:', error);
-    
-    // Message d'erreur plus précis
-    let errorMessage = 'Erreur lors de l\'enregistrement.';
-    if (error.code === '22007') {
-      errorMessage = 'Format de date invalide. Veuillez vérifier les dates.';
-    } else if (error.message.includes('date')) {
-      errorMessage = 'Problème avec une date. Les dates ne peuvent pas être vides.';
+    try {
+      const monteurData: Monteur = {
+        matricule: Number(formData.matricule),
+        nom_monteur: formData.nom_monteur,
+        telephone: formData.telephone || null,
+        cin: formData.cin || null,
+        date_naissance: formData.date_naissance || null,
+        date_debut_contrat: formData.date_debut_contrat || new Date().toISOString().split('T')[0],
+        type_contrat: (formData.type_contrat as TypeContrat) || 'CDD',
+        role_monteur: (formData.role_monteur as RoleMonteur) || 'OUVRIER',
+        salaire_jour: Number(formData.salaire_jour) || 100,
+        actif: formData.actif !== false,
+        scan_cin_recto: formData.scan_cin_recto || null,
+        scan_cin_verso: formData.scan_cin_verso || null
+      };
+
+      console.log('📝 Monteur data prepared:', monteurData);
+
+      if (editingMonteur) {
+        await updateMonteur(monteurData);
+      } else {
+        await addMonteur(monteurData);
+      }
+      
+      setIsModalOpen(false);
+      setFormData({
+        actif: true,
+        salaire_jour: 100,
+        type_contrat: 'CDD',
+        role_monteur: 'OUVRIER'
+      });
+      
+      // Rafraîchir les données
+      await refreshData();
+      
+    } catch (error: any) {
+      console.error('❌ Erreur lors de l\'enregistrement:', error);
+      
+      // Message d'erreur plus précis
+      let errorMessage = 'Erreur lors de l\'enregistrement.';
+      if (error.code === '22007') {
+        errorMessage = 'Format de date invalide. Veuillez vérifier les dates.';
+      } else if (error.message.includes('date')) {
+        errorMessage = 'Problème avec une date. Les dates ne peuvent pas être vides.';
+      }
+      
+      alert(`${errorMessage}\n\nDétails: ${error.message || 'Erreur inconnue'}`);
+    } finally {
+      setIsSaving(false); // ← UTILISÉ ICI
     }
-    
-    alert(`${errorMessage}\n\nDétails: ${error.message || 'Erreur inconnue'}`);
-  } finally {
-    setIsSaving(false);
-  }
-};
+  };
+
+  const handleDelete = async (matricule: number) => {
+    if (!window.confirm('Êtes-vous sûr de vouloir supprimer ce collaborateur ?')) {
+      return;
+    }
+
+    setIsDeleting(matricule);
+    try {
+      await deleteMonteur(matricule);
+      // Rafraîchir les données
+      await refreshData();
+    } catch (error) {
+      console.error('Erreur lors de la suppression:', error);
+      alert('Erreur lors de la suppression. Voir la console pour plus de détails.');
+    } finally {
+      setIsDeleting(null);
+    }
+  };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, side: 'recto' | 'verso') => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      // Create a fake URL for display purposes in this frontend-only app
+      // Note: En production, vous devrez uploader vers Supabase Storage
       const imageUrl = URL.createObjectURL(file);
       
       if (side === 'recto') {
@@ -131,6 +172,16 @@ const Monteurs: React.FC = () => {
     window.print();
   };
 
+  // Afficher un loader pendant le chargement
+  if (loadingData && monteurs.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px]">
+        <div className="loader border-4 border-gray-200 border-t-red-600 rounded-full w-12 h-12 animate-spin"></div>
+        <p className="mt-4 text-gray-600">Chargement des collaborateurs...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -140,7 +191,8 @@ const Monteurs: React.FC = () => {
         </div>
         <button 
           onClick={() => handleOpenModal()}
-          className="flex items-center px-4 py-2 bg-red-700 text-white rounded-lg hover:bg-red-800 shadow-sm transition-colors font-bold"
+          disabled={loadingData}
+          className="flex items-center px-4 py-2 bg-red-700 text-white rounded-lg hover:bg-red-800 shadow-sm transition-colors font-bold disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Plus className="w-5 h-5 mr-2" />
           Ajouter Collaborateur
@@ -157,6 +209,7 @@ const Monteurs: React.FC = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Rechercher par nom, matricule ou CIN..." 
             className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+            disabled={loadingData}
           />
         </div>
       </div>
@@ -176,61 +229,90 @@ const Monteurs: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filteredMonteurs.map(monteur => {
-                  const isChef = monteur.role_monteur === 'CHEF_CHANTIER';
-                  return (
-                    <tr key={monteur.matricule} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border-2 ${isChef ? 'bg-red-100 text-red-700 border-red-200' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
-                          {monteur.nom_monteur.substring(0, 2)}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col">
-                          <span className="font-bold text-gray-900">{monteur.nom_monteur}</span>
-                          <span className="text-xs text-gray-400 font-mono">Mat: {monteur.matricule}</span>
-                          {monteur.cin && <span className="text-xs text-gray-500">CIN: {monteur.cin}</span>}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        {isChef ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-200">
-                            <HardHat className="w-3 h-3 mr-1" /> Chef de Chantier
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
-                            <Hammer className="w-3 h-3 mr-1" /> Monteur
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col">
-                          <span className="font-medium text-gray-800">{monteur.type_contrat}</span>
-                          <span className="text-xs text-gray-500">{monteur.salaire_jour} DH / Jour</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex gap-2">
-                          <div title="Recto" className={`w-3 h-3 rounded-full ${monteur.scan_cin_recto ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-                          <div title="Verso" className={`w-3 h-3 rounded-full ${monteur.scan_cin_verso ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end gap-2">
-                          <button onClick={() => handleGenerateContract(monteur)} className="p-2 text-gray-500 hover:text-indigo-600 bg-gray-50 hover:bg-indigo-50 rounded" title="Générer Contrat">
-                            <FileText className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => handleOpenModal(monteur)} className="p-2 text-gray-500 hover:text-blue-600 bg-gray-50 hover:bg-blue-50 rounded" title="Modifier">
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => deleteMonteur(monteur.matricule)} className="p-2 text-gray-500 hover:text-red-600 bg-gray-50 hover:bg-red-50 rounded" title="Supprimer">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {filteredMonteurs.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                      {loadingData ? 'Chargement...' : 'Aucun collaborateur trouvé'}
+                    </td>
+                  </tr>
+                ) : (
+                  filteredMonteurs.map(monteur => {
+                    const isChef = monteur.role_monteur === 'CHEF_CHANTIER';
+                    const isBeingDeleted = isDeleting === monteur.matricule;
+                    
+                    return (
+                      <tr key={monteur.matricule} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border-2 ${isChef ? 'bg-red-100 text-red-700 border-red-200' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
+                            {monteur.nom_monteur.substring(0, 2)}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col">
+                            <span className="font-bold text-gray-900">{monteur.nom_monteur}</span>
+                            <span className="text-xs text-gray-400 font-mono">Mat: {monteur.matricule}</span>
+                            {monteur.cin && <span className="text-xs text-gray-500">CIN: {monteur.cin}</span>}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          {isChef ? (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-200">
+                              <HardHat className="w-3 h-3 mr-1" /> Chef de Chantier
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                              <Hammer className="w-3 h-3 mr-1" /> Monteur
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col">
+                            <span className="font-medium text-gray-800">{monteur.type_contrat}</span>
+                            <span className="text-xs text-gray-500">{monteur.salaire_jour} DH / Jour</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex gap-2">
+                            <div title="Recto" className={`w-3 h-3 rounded-full ${monteur.scan_cin_recto ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                            <div title="Verso" className={`w-3 h-3 rounded-full ${monteur.scan_cin_verso ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex justify-end gap-2">
+                            <button 
+                              onClick={() => handleGenerateContract(monteur)} 
+                              className="p-2 text-gray-500 hover:text-indigo-600 bg-gray-50 hover:bg-indigo-50 rounded disabled:opacity-50 disabled:cursor-not-allowed" 
+                              title="Générer Contrat"
+                              disabled={isBeingDeleted}
+                            >
+                              <FileText className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={() => handleOpenModal(monteur)} 
+                              className="p-2 text-gray-500 hover:text-blue-600 bg-gray-50 hover:bg-blue-50 rounded disabled:opacity-50 disabled:cursor-not-allowed" 
+                              title="Modifier"
+                              disabled={isBeingDeleted}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={() => handleDelete(monteur.matricule)} 
+                              className={`p-2 ${isBeingDeleted ? 'opacity-50 cursor-not-allowed' : 'hover:text-red-600 hover:bg-red-50'} text-gray-500 bg-gray-50 rounded`} 
+                              title="Supprimer"
+                              disabled={isBeingDeleted}
+                            >
+                              {isBeingDeleted ? (
+                                <div className="w-4 h-4 border-2 border-gray-300 border-t-red-600 rounded-full animate-spin"></div>
+                              ) : (
+                                <Trash2 className="w-4 h-4" />
+                              )}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
@@ -245,7 +327,13 @@ const Monteurs: React.FC = () => {
               <h3 className="font-bold text-lg text-gray-800">
                 {editingMonteur ? 'Modifier Collaborateur' : 'Nouveau Collaborateur'}
               </h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600">&times;</button>
+              <button 
+                onClick={() => setIsModalOpen(false)} 
+                className="text-gray-400 hover:text-gray-600 disabled:opacity-50"
+                disabled={isSaving}
+              >
+                &times;
+              </button>
             </div>
             
             <div className="p-6">
@@ -258,27 +346,32 @@ const Monteurs: React.FC = () => {
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Matricule</label>
                         <input 
-                          type="number" required
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-50"
-                          value={formData.matricule}
+                          type="number" 
+                          required
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-50 disabled:bg-gray-100"
+                          value={formData.matricule || ''}
                           onChange={e => setFormData({...formData, matricule: parseInt(e.target.value)})}
+                          disabled={!!editingMonteur || isSaving}
                         />
                       </div>
                       <div className="col-span-2">
                         <label className="block text-sm font-medium text-gray-700 mb-1">Nom Complet</label>
                         <input 
-                          type="text" required
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                          type="text" 
+                          required
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 disabled:bg-gray-100"
                           value={formData.nom_monteur || ''}
                           onChange={e => setFormData({...formData, nom_monteur: e.target.value})}
+                          disabled={isSaving}
                         />
                       </div>
                       <div>
                         <label className="block text-sm font-bold text-gray-800 mb-1 bg-yellow-50 px-2 py-0.5 rounded-md w-fit">Poste / Rôle</label>
                         <select 
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 font-medium"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 font-medium disabled:bg-gray-100"
                           value={formData.role_monteur || 'OUVRIER'}
                           onChange={e => setFormData({...formData, role_monteur: e.target.value as RoleMonteur})}
+                          disabled={isSaving}
                         >
                           <option value="OUVRIER">👷 Monteur / Ouvrier</option>
                           <option value="CHEF_CHANTIER">👷‍♂️ Chef de Chantier</option>
@@ -288,26 +381,38 @@ const Monteurs: React.FC = () => {
                         <label className="block text-sm font-medium text-gray-700 mb-1">CIN</label>
                         <input 
                           type="text" 
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 uppercase"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 uppercase disabled:bg-gray-100"
                           value={formData.cin || ''}
                           onChange={e => setFormData({...formData, cin: e.target.value})}
                           placeholder="Ex: J12345"
+                          disabled={isSaving}
                         />
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Téléphone</label>
                         <input 
                           type="tel" 
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 disabled:bg-gray-100"
                           value={formData.telephone || ''}
                           onChange={e => setFormData({...formData, telephone: e.target.value})}
                           placeholder="06..."
+                          disabled={isSaving}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Date de naissance</label>
+                        <input 
+                          type="date" 
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 disabled:bg-gray-100"
+                          value={formData.date_naissance || ''}
+                          onChange={e => setFormData({...formData, date_naissance: e.target.value})}
+                          disabled={isSaving}
                         />
                       </div>
                    </div>
                 </div>
 
-                {/* Section Documents (New) */}
+                {/* Section Documents */}
                 <div>
                    <h4 className="text-sm font-bold text-gray-900 mb-3 uppercase tracking-wide border-b pb-1 flex items-center">
                      <Camera className="w-4 h-4 mr-2" /> Documents (Carte Nationale)
@@ -321,7 +426,8 @@ const Monteurs: React.FC = () => {
                               <button 
                                 type="button"
                                 onClick={() => setFormData({...formData, scan_cin_recto: ''})}
-                                className="absolute top-2 right-2 bg-red-600 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                className="absolute top-2 right-2 bg-red-600 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                                disabled={isSaving}
                               >
                                 <Trash2 size={16}/>
                               </button>
@@ -334,8 +440,9 @@ const Monteurs: React.FC = () => {
                               <input 
                                 type="file" 
                                 accept="image/*"
-                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
                                 onChange={(e) => handleFileUpload(e, 'recto')}
+                                disabled={isSaving}
                               />
                            </div>
                          )}
@@ -349,7 +456,8 @@ const Monteurs: React.FC = () => {
                               <button 
                                 type="button"
                                 onClick={() => setFormData({...formData, scan_cin_verso: ''})}
-                                className="absolute top-2 right-2 bg-red-600 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                className="absolute top-2 right-2 bg-red-600 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                                disabled={isSaving}
                               >
                                 <Trash2 size={16}/>
                               </button>
@@ -362,8 +470,9 @@ const Monteurs: React.FC = () => {
                               <input 
                                 type="file" 
                                 accept="image/*"
-                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
                                 onChange={(e) => handleFileUpload(e, 'verso')}
+                                disabled={isSaving}
                               />
                            </div>
                          )}
@@ -378,18 +487,21 @@ const Monteurs: React.FC = () => {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Salaire Journalier (DH)</label>
                       <input 
-                        type="number" required
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                        value={formData.salaire_jour}
+                        type="number" 
+                        required
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 disabled:bg-gray-100"
+                        value={formData.salaire_jour || 100}
                         onChange={e => setFormData({...formData, salaire_jour: parseFloat(e.target.value)})}
+                        disabled={isSaving}
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Type de Contrat</label>
                       <select 
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 disabled:bg-gray-100"
                         value={formData.type_contrat || 'CDD'}
                         onChange={e => setFormData({...formData, type_contrat: e.target.value as TypeContrat})}
+                        disabled={isSaving}
                       >
                         <option value="CDD">CDD</option>
                         <option value="CDI">CDI</option>
@@ -401,17 +513,38 @@ const Monteurs: React.FC = () => {
                       <label className="block text-sm font-medium text-gray-700 mb-1">Date début</label>
                       <input 
                         type="date" 
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 disabled:bg-gray-100"
                         value={formData.date_debut_contrat || ''}
                         onChange={e => setFormData({...formData, date_debut_contrat: e.target.value})}
+                        disabled={isSaving}
                       />
                     </div>
                   </div>
                 </div>
 
                 <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-                  <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Annuler</button>
-                  <button type="submit" className="px-4 py-2 text-white bg-red-700 rounded-lg hover:bg-red-800">Enregistrer</button>
+                  <button 
+                    type="button" 
+                    onClick={() => setIsModalOpen(false)} 
+                    className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50"
+                    disabled={isSaving}
+                  >
+                    Annuler
+                  </button>
+                  <button 
+                    type="submit" 
+                    className="px-4 py-2 text-white bg-red-700 rounded-lg hover:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    disabled={isSaving}
+                  >
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Enregistrement...
+                      </>
+                    ) : (
+                      'Enregistrer'
+                    )}
+                  </button>
                 </div>
               </form>
             </div>
