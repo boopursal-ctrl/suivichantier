@@ -32,18 +32,18 @@ export interface Client {
 }
 
 export interface Monteur {
-  matricule: number; // ← RESTE number (int4 dans la base)
+  matricule: number;
   nom_monteur: string;
-  telephone?: string;
-  cin?: string;
-  date_naissance?: string;
-  date_debut_contrat?: string;
+  telephone?: string | null; // ← Peut être null
+  cin?: string | null;
+  date_naissance?: string | null; // ← Peut être null
+  date_debut_contrat?: string | null;
   type_contrat: TypeContrat;
   role_monteur: RoleMonteur;
   salaire_jour: number;
   actif: boolean;
-  scan_cin_recto?: string;
-  scan_cin_verso?: string;
+  scan_cin_recto?: string | null;
+  scan_cin_verso?: string | null;
   created_at?: string;
   updated_at?: string;
 }
