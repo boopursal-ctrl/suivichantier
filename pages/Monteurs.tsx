@@ -47,19 +47,66 @@ const Monteurs: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleSave = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.nom_monteur || !formData.matricule) return;
+  const handleSave = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!formData.nom_monteur || !formData.matricule) {
+    alert('Veuillez remplir le nom et le matricule');
+    return;
+  }
 
-    const monteurData = formData as Monteur;
+  setIsSaving(true);
+  
+  try {
+    const monteurData: Monteur = {
+      matricule: Number(formData.matricule),
+      nom_monteur: formData.nom_monteur,
+      telephone: formData.telephone || null, // ← NULL au lieu de chaîne vide
+      cin: formData.cin || null, // ← NULL au lieu de chaîne vide
+      date_naissance: formData.date_naissance || null, // ← NULL si vide
+      date_debut_contrat: formData.date_debut_contrat || new Date().toISOString().split('T')[0],
+      type_contrat: formData.type_contrat as TypeContrat || 'CDD',
+      role_monteur: formData.role_monteur as RoleMonteur || 'OUVRIER',
+      salaire_jour: Number(formData.salaire_jour) || 100,
+      actif: formData.actif !== false,
+      scan_cin_recto: formData.scan_cin_recto || null, // ← NULL
+      scan_cin_verso: formData.scan_cin_verso || null // ← NULL
+    };
+
+    console.log('📝 Monteur data prepared:', monteurData);
 
     if (editingMonteur) {
-      updateMonteur(monteurData);
+      await updateMonteur(monteurData);
     } else {
-      addMonteur(monteurData);
+      await addMonteur(monteurData);
     }
+    
     setIsModalOpen(false);
-  };
+    setFormData({
+      actif: true,
+      salaire_jour: 100,
+      type_contrat: 'CDD',
+      role_monteur: 'OUVRIER'
+    });
+    
+    // Rafraîchir les données
+    await refreshData();
+    
+  } catch (error: any) {
+    console.error('❌ Erreur lors de l\'enregistrement:', error);
+    
+    // Message d'erreur plus précis
+    let errorMessage = 'Erreur lors de l\'enregistrement.';
+    if (error.code === '22007') {
+      errorMessage = 'Format de date invalide. Veuillez vérifier les dates.';
+    } else if (error.message.includes('date')) {
+      errorMessage = 'Problème avec une date. Les dates ne peuvent pas être vides.';
+    }
+    
+    alert(`${errorMessage}\n\nDétails: ${error.message || 'Erreur inconnue'}`);
+  } finally {
+    setIsSaving(false);
+  }
+};
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, side: 'recto' | 'verso') => {
     if (e.target.files && e.target.files[0]) {
