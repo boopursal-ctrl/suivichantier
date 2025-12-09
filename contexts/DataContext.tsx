@@ -153,73 +153,74 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   // --- ACTIONS MONTEURS ---
-  const addMonteur = async (monteur: Monteur) => {
-    console.log('➕ Adding monteur:', monteur);
+ const addMonteur = async (monteur: Monteur) => {
+  console.log('➕ Adding monteur:', monteur);
+  
+  try {
+    const { data, error } = await supabase
+      .from('monteurs')
+      .insert([monteur])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('❌ Error adding monteur:', error);
+      throw error;
+    }
     
-    try {
-      const { data, error } = await supabase
-        .from('monteurs')
-        .insert([monteur])
-        .select()
-        .single();
+    if (data) {
+      setMonteurs(prev => [...prev, data as Monteur]);
+      console.log('✅ Monteur added successfully');
+    }
+  } catch (error) {
+    console.error('❌ Exception adding monteur:', error);
+    throw error;
+  }
+};
 
-      if (error) {
-        console.error('❌ Error adding monteur:', error);
-        throw error;
-      }
-      
-      if (data) {
-        setMonteurs(prev => [...prev, data as Monteur]);
-        console.log('✅ Monteur added successfully');
-      }
-    } catch (error) {
-      console.error('❌ Exception adding monteur:', error);
+
+ const updateMonteur = async (monteur: Monteur) => {
+  try {
+    const { error } = await supabase
+      .from('monteurs')
+      .update(monteur)
+      .eq('matricule', monteur.matricule);
+
+    if (error) {
+      console.error('❌ Error updating monteur:', error);
       throw error;
     }
-  };
+    
+    setMonteurs(prev => prev.map(m => 
+      m.matricule === monteur.matricule ? monteur : m
+    ));
+  } catch (error) {
+    console.error('❌ Exception updating monteur:', error);
+    throw error;
+  }
+};
 
-  const updateMonteur = async (monteur: Monteur) => {
-    try {
-      const { error } = await supabase
-        .from('monteurs')
-        .update(monteur)
-        .eq('matricule', monteur.matricule);
+  const deleteMonteur = async (matricule: number) => { // ← RESTE number
+  try {
+    console.log('🗑️ Deleting monteur with matricule:', matricule);
+    
+    const { error } = await supabase
+      .from('monteurs')
+      .delete()
+      .eq('matricule', matricule);
 
-      if (error) {
-        console.error('❌ Error updating monteur:', error);
-        throw error;
-      }
-      
-      setMonteurs(prev => prev.map(m => 
-        m.matricule === monteur.matricule ? monteur : m
-      ));
-    } catch (error) {
-      console.error('❌ Exception updating monteur:', error);
+    if (error) {
+      console.error('❌ Error deleting monteur:', error);
       throw error;
     }
-  };
-
-  const deleteMonteur = async (matricule: string) => { // ← CHANGÉ: string
-    try {
-      console.log('🗑️ Deleting monteur with matricule:', matricule);
-      
-      const { error } = await supabase
-        .from('monteurs')
-        .delete()
-        .eq('matricule', matricule);
-
-      if (error) {
-        console.error('❌ Error deleting monteur:', error);
-        throw error;
-      }
-      
-      setMonteurs(prev => prev.filter(m => m.matricule !== matricule));
-      console.log('✅ Monteur deleted successfully');
-    } catch (error) {
-      console.error('❌ Exception deleting monteur:', error);
-      throw error;
-    }
-  };
+    
+    setMonteurs(prev => prev.filter(m => m.matricule !== matricule));
+    console.log('✅ Monteur deleted successfully');
+  } catch (error) {
+    console.error('❌ Exception deleting monteur:', error);
+    throw error;
+  }
+};
 
   // ... (le reste de votre DataContext reste inchangé)
 
