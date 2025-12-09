@@ -22,7 +22,7 @@ interface DataContextType {
   lignesCouts: LigneCout[];
   addCout: (c: LigneCout) => Promise<void>;
   deleteCout: (id: string) => Promise<void>;
-  
+
   versements: Versement[];
   addVersement: (v: Versement) => Promise<void>;
   deleteVersement: (id: string) => Promise<void>;
@@ -41,7 +41,7 @@ interface DataContextType {
   addArticle: (a: ArticleStock) => Promise<void>;
   mouvements: MouvementStock[];
   addMouvement: (m: MouvementStock) => Promise<void>;
-  
+
   loadingData: boolean;
   refreshData: () => Promise<void>;
 }
@@ -156,87 +156,87 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   // --- ACTIONS MONTEURS ---
- // Dans DataContext.tsx - Correction de addMonteur
-const addMonteur = async (monteur: Monteur) => {
-  try {
-    console.log('➕ Adding monteur:', monteur);
-    
-    // Préparer les données pour Supabase
-    const monteurData = {
-      ...monteur,
-      // Convertir les chaînes vides en NULL pour les dates
-      date_naissance: monteur.date_naissance || null,
-      date_debut_contrat: monteur.date_debut_contrat || new Date().toISOString().split('T')[0],
-      // S'assurer que tous les champs texte ont des valeurs par défaut
-      cin: monteur.cin || null,
-      telephone: monteur.telephone || null,
-      scan_cin_recto: monteur.scan_cin_recto || null,
-      scan_cin_verso: monteur.scan_cin_verso || null
-    };
+  // Dans DataContext.tsx - Correction de addMonteur
+  const addMonteur = async (monteur: Monteur) => {
+    try {
+      console.log('➕ Adding monteur:', monteur);
 
-    console.log('📤 Prepared data for Supabase:', monteurData);
-    
-    const { data, error } = await supabase
-      .from('monteurs')
-      .insert([monteurData])
-      .select()
-      .single();
+      // Préparer les données pour Supabase
+      const monteurData = {
+        ...monteur,
+        // Convertir les chaînes vides en NULL pour les dates
+        date_naissance: monteur.date_naissance || null,
+        date_debut_contrat: monteur.date_debut_contrat || new Date().toISOString().split('T')[0],
+        // S'assurer que tous les champs texte ont des valeurs par défaut
+        cin: monteur.cin || null,
+        telephone: monteur.telephone || null,
+        scan_cin_recto: monteur.scan_cin_recto || null,
+        scan_cin_verso: monteur.scan_cin_verso || null
+      };
 
-    if (error) {
-      console.error('❌ Error adding monteur:', {
-        message: error.message,
-        code: error.code,
-        details: error.details,
-        hint: error.hint
-      });
+      console.log('📤 Prepared data for Supabase:', monteurData);
+
+      const { data, error } = await supabase
+        .from('monteurs')
+        .insert([monteurData])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('❌ Error adding monteur:', {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint
+        });
+        throw error;
+      }
+
+      if (data) {
+        setMonteurs(prev => [...prev, data as Monteur]);
+        console.log('✅ Monteur added successfully');
+      }
+    } catch (error) {
+      console.error('❌ Exception adding monteur:', error);
       throw error;
     }
-    
-    if (data) {
-      setMonteurs(prev => [...prev, data as Monteur]);
-      console.log('✅ Monteur added successfully');
-    }
-  } catch (error) {
-    console.error('❌ Exception adding monteur:', error);
-    throw error;
-  }
-};
+  };
   const updateMonteur = async (monteur: Monteur) => {
-  try {
-    // Préparer les données pour Supabase
-    const monteurData = {
-      ...monteur,
-      // Convertir les chaînes vides en NULL pour les dates
-      date_naissance: monteur.date_naissance || null,
-      date_debut_contrat: monteur.date_debut_contrat || new Date().toISOString().split('T')[0],
-      cin: monteur.cin || null,
-      telephone: monteur.telephone || null,
-      scan_cin_recto: monteur.scan_cin_recto || null,
-      scan_cin_verso: monteur.scan_cin_verso || null
-    };
+    try {
+      // Préparer les données pour Supabase
+      const monteurData = {
+        ...monteur,
+        // Convertir les chaînes vides en NULL pour les dates
+        date_naissance: monteur.date_naissance || null,
+        date_debut_contrat: monteur.date_debut_contrat || new Date().toISOString().split('T')[0],
+        cin: monteur.cin || null,
+        telephone: monteur.telephone || null,
+        scan_cin_recto: monteur.scan_cin_recto || null,
+        scan_cin_verso: monteur.scan_cin_verso || null
+      };
 
-    const { error } = await supabase
-      .from('monteurs')
-      .update(monteurData)
-      .eq('matricule', monteur.matricule);
+      const { error } = await supabase
+        .from('monteurs')
+        .update(monteurData)
+        .eq('matricule', monteur.matricule);
 
-    if (error) {
-      console.error('❌ Error updating monteur:', error);
+      if (error) {
+        console.error('❌ Error updating monteur:', error);
+        throw error;
+      }
+
+      setMonteurs(prev => prev.map(m =>
+        m.matricule === monteur.matricule ? monteur : m
+      ));
+    } catch (error) {
+      console.error('❌ Exception updating monteur:', error);
       throw error;
     }
-    
-    setMonteurs(prev => prev.map(m => 
-      m.matricule === monteur.matricule ? monteur : m
-    ));
-  } catch (error) {
-    console.error('❌ Exception updating monteur:', error);
-    throw error;
-  }
-};
+  };
   const deleteMonteur = async (matricule: number) => {
     try {
       console.log('🗑️ Deleting monteur with matricule:', matricule);
-      
+
       const { error } = await supabase
         .from('monteurs')
         .delete()
@@ -246,7 +246,7 @@ const addMonteur = async (monteur: Monteur) => {
         console.error('❌ Error deleting monteur:', error);
         throw error;
       }
-      
+
       setMonteurs(prev => prev.filter(m => m.matricule !== matricule));
       console.log('✅ Monteur deleted successfully');
     } catch (error) {
@@ -259,7 +259,7 @@ const addMonteur = async (monteur: Monteur) => {
   const addChantier = async (chantier: Chantier) => {
     try {
       console.log('➕ Adding chantier:', chantier);
-      
+
       const { id_chantier, ...rest } = chantier;
       const { data, error } = await supabase
         .from('chantiers')
@@ -300,7 +300,7 @@ const addMonteur = async (monteur: Monteur) => {
         throw error;
       }
 
-      setChantiers(prev => prev.map(c => 
+      setChantiers(prev => prev.map(c =>
         c.id_chantier === chantier.id_chantier ? chantier : c
       ));
     } catch (error) {
@@ -335,7 +335,7 @@ const addMonteur = async (monteur: Monteur) => {
     refreshData,
     chantiers, addChantier, updateChantier, deleteChantier,
     monteurs, addMonteur, updateMonteur, deleteMonteur,
-    affectations, 
+    affectations,
     addAffectation: async (a) => {
       try {
         const { id_affectation, ...rest } = a;
@@ -357,7 +357,7 @@ const addMonteur = async (monteur: Monteur) => {
         throw error;
       }
     },
-    lignesCouts, 
+    lignesCouts,
     addCout: async (c) => {
       try {
         const { id_cout, ...rest } = c;
@@ -379,7 +379,7 @@ const addMonteur = async (monteur: Monteur) => {
         throw error;
       }
     },
-    versements, 
+    versements,
     addVersement: async (v) => {
       try {
         const { id_versement, ...rest } = v;
@@ -401,7 +401,7 @@ const addMonteur = async (monteur: Monteur) => {
         throw error;
       }
     },
-    clients, 
+    clients,
     addClient: async (c) => {
       try {
         const { id_client, ...rest } = c;
@@ -433,34 +433,80 @@ const addMonteur = async (monteur: Monteur) => {
         throw error;
       }
     },
-    users, 
+    users,
     addUser: async (u) => {
       try {
-        const { id, password, ...rest } = u;
-        const { data, error } = await supabase.from('profiles').insert([{
-          id: id,
-          email: rest.email,
-          name: rest.name,
-          role: rest.role,
-          is_active: rest.isActive,
-          allowed_modules: rest.allowedModules
-        }]).select();
+        console.log('👤 addUser: Attempting to create Auth User first...');
 
-        if (error) throw error;
+        // Top of file import - will handle this separately or use inline require for now to avoid extensive changes, 
+        // actually I'll use the imported constants since I just exported them.
+        // But I need to update imports at the top of the file separately or just use import()
+
+        // 1. Create a temporary client to sign up the new user WITHOUT logging out the admin
+        // We use in-memory storage so it doesn't touch localStorage
+        const { supabaseUrl, supabaseKey } = await import('../services/supabaseClient');
+
+        const tempClient = (await import('@supabase/supabase-js')).createClient(supabaseUrl, supabaseKey, {
+          auth: {
+            persistSession: false, // Don't save to localStorage
+            autoRefreshToken: false,
+            detectSessionInUrl: false
+          }
+        });
+
+        const { data: authData, error: authError } = await tempClient.auth.signUp({
+          email: u.email,
+          password: u.password || '12345678', // Default password if not provided
+        });
+
+        if (authError) {
+          console.error('❌ Auth Creation Error:', authError);
+          throw new Error(`Authentication Error: ${authError.message}`);
+        }
+
+        if (!authData.user) {
+          throw new Error("User created but no ID returned.");
+        }
+
+        const newUserId = authData.user.id;
+        console.log('✅ Auth User created with ID:', newUserId);
+
+        // 2. Now insert the profile using the REAL User ID
+        const profileData = {
+          id: newUserId, // Use the real Auth ID
+          email: u.email,
+          name: u.name,
+          role: u.role,
+          is_active: u.isActive,
+          allowed_modules: u.allowedModules || ['dashboard']
+        };
+
+        const { data, error } = await supabase
+          .from('profiles')
+          .insert([profileData])
+          .select('*')
+          .single();
+
+        if (error) {
+          console.error('❌ Profile Insertion Error:', error);
+          // If profile fails, we might want to clean up the auth user, but usually we can't delete from client.
+          throw error;
+        }
 
         if (data) {
           const mapped: User = {
-            id: data[0].id,
-            email: data[0].email,
-            name: data[0].name,
-            role: data[0].role,
-            isActive: data[0].is_active,
-            allowedModules: data[0].allowed_modules
+            id: data.id,
+            email: data.email,
+            name: data.name,
+            role: data.role,
+            isActive: data.is_active,
+            allowedModules: data.allowed_modules
           };
           setUsers(prev => [...prev, mapped]);
+          console.log('✅ User & Profile added successfully');
         }
       } catch (error) {
-        console.error('Error adding user:', error);
+        console.error('❌ Exception adding user:', error);
         throw error;
       }
     },
@@ -490,7 +536,7 @@ const addMonteur = async (monteur: Monteur) => {
         throw error;
       }
     },
-    articles, 
+    articles,
     addArticle: async (a) => {
       try {
         const { id_article, ...rest } = a;
@@ -502,21 +548,21 @@ const addMonteur = async (monteur: Monteur) => {
         throw error;
       }
     },
-    mouvements, 
+    mouvements,
     addMouvement: async (m) => {
       try {
         const { id_mouvement, ...rest } = m;
         const { data: moveData, error: moveError } = await supabase.from('mouvements_stock').insert([rest]).select();
-        
+
         if (moveError) throw moveError;
 
         if (moveData) {
           setMouvements(prev => [moveData[0] as MouvementStock, ...prev]);
-          
+
           // Update article quantity
           const article = articles.find(a => a.id_article === m.id_article);
           if (article) {
-            const newQty = m.type === 'ENTREE' 
+            const newQty = m.type === 'ENTREE'
               ? Number(article.quantite) + Number(m.quantite)
               : Number(article.quantite) - Number(m.quantite);
 
@@ -527,7 +573,7 @@ const addMonteur = async (monteur: Monteur) => {
 
             if (artError) throw artError;
 
-            setArticles(prev => prev.map(a => 
+            setArticles(prev => prev.map(a =>
               a.id_article === article.id_article ? { ...a, quantite: newQty } : a
             ));
           }

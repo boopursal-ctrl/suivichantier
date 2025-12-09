@@ -15,13 +15,13 @@ const Login: React.FC = () => {
     e.preventDefault();
     setError('');
     setLoading(true);
-    
+
     try {
       // await is crucial here to wait for the result
-      const success = await login(email, password);
-      if (!success) {
-        // If login returns false, it usually means credentials were wrong
-        setError('Email ou mot de passe incorrect.');
+      const result = await login(email, password);
+      if (!result.success) {
+        // If login returns false, we show the returned message
+        setError(result.message || 'Email ou mot de passe incorrect.');
       }
       // If success is true, the AuthContext state updates and App.tsx redirects automatically
     } catch (err) {
@@ -36,7 +36,7 @@ const Login: React.FC = () => {
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
         <div className="bg-white p-8 text-center border-b border-gray-100">
           <div className="flex justify-center mb-6">
-             <Logo3F className="w-full max-w-[240px]" />
+            <Logo3F className="w-full max-w-[240px]" />
           </div>
           <h1 className="text-xl font-bold text-gray-800 tracking-tight">Espace de Gestion</h1>
           <p className="text-gray-500 mt-2 text-sm">Connectez-vous à votre compte</p>
@@ -54,8 +54,8 @@ const Login: React.FC = () => {
             <label className="block text-sm font-medium text-gray-700 mb-1">Email Professionnel</label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <input 
-                type="email" 
+              <input
+                type="email"
                 required
                 className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:outline-none transition-shadow"
                 placeholder="nom@entreprise.ma"
@@ -69,8 +69,8 @@ const Login: React.FC = () => {
             <label className="block text-sm font-medium text-gray-700 mb-1">Mot de passe</label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-              <input 
-                type="password" 
+              <input
+                type="password"
                 required
                 className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:outline-none transition-shadow"
                 placeholder="••••••••"
@@ -80,8 +80,8 @@ const Login: React.FC = () => {
             </div>
           </div>
 
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             disabled={loading}
             className="w-full py-3 bg-red-700 text-white rounded-xl font-bold text-lg hover:bg-red-800 shadow-md transition-all hover:scale-[1.02] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center"
           >
@@ -95,7 +95,7 @@ const Login: React.FC = () => {
           </button>
 
           <div className="text-center text-xs text-gray-400 mt-4">
-             En cas de problème d'accès, contactez l'administrateur.
+            En cas de problème d'accès, contactez l'administrateur.
           </div>
         </form>
       </div>
