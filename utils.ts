@@ -1,3 +1,10 @@
+import { type ClassValue, clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
 export const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('fr-MA', {
     style: 'currency',
@@ -16,7 +23,7 @@ export const countDays = (start: string, end: string): number => {
   const d1 = new Date(start);
   const d2 = new Date(end);
   const diffTime = Math.abs(d2.getTime() - d1.getTime());
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   return diffDays + 1; // Inclusive
 };
 
@@ -40,4 +47,34 @@ export const calculateMarginColor = (difference: number, budgetPrevu: number) =>
   if (difference < 0) return 'text-red-600 bg-red-50'; // Over budget
   if (percent < 0.1) return 'text-orange-600 bg-orange-50'; // Tight margin
   return 'text-green-600 bg-green-50'; // Healthy
+};
+
+export const getCityName = (code: string): string => {
+  const cityMap: { [key: string]: string } = {
+    '528': 'Rabat',
+    '539': 'Casablanca',
+    '540': 'Salé',
+    '541': 'Tanger',
+    '542': 'Fès',
+    '543': 'Marrakech',
+    '544': 'Agadir',
+    '545': 'Meknès',
+    '546': 'Oujda',
+    '547': 'Kénitra',
+    '548': 'Tétouan',
+    '549': 'Safi',
+    '550': 'El Jadida',
+    '551': 'Nador',
+    '552': 'Béni Mellal',
+    '553': 'Mohammedia',
+    '554': 'Khouribga',
+    '555': 'Settat',
+    '556': 'Larache',
+    '557': 'Khemisset',
+    '558': 'Guelmim',
+    '559': 'Berrechid',
+    '560': 'Taza',
+    '000': 'Ville Inconnue'
+  };
+  return cityMap[code] || code;
 };

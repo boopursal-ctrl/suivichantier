@@ -1,61 +1,80 @@
 import React, { useState, useMemo } from 'react';
 import { useData } from '../contexts/DataContext';
 import { formatCurrency, countDays } from '../utils';
-import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
-  PieChart, Pie, Cell, LineChart, Line 
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
+  PieChart, Pie, Cell
 } from 'recharts';
-import { TrendingUp, TrendingDown, DollarSign, PieChart as PieIcon, Users, ArrowUpRight, ArrowDownRight, Printer } from 'lucide-react';
+import { TrendingUp, DollarSign, PieChart as PieIcon, Users, Printer, Calendar, Download, Filter, Wallet } from 'lucide-react';
 
-const COLORS = ['#b91c1c', '#334155', '#ea580c', '#64748b', '#dc2626', '#94a3b8'];
+const COLORS = ['#ef4444', '#f97316', '#3b82f6', '#8b5cf6', '#10b981', '#64748b'];
 
 const Reports: React.FC = () => {
   const { chantiers, lignesCouts, affectations, versements, monteurs } = useData();
   const [activeTab, setActiveTab] = useState<'financier' | 'analytique' | 'rh'>('financier');
+  const [dateFilter, setDateFilter] = useState('year');
 
   // --- TRAITEMENT DES DONNÉES ---
 
+  // --- TRAITEMENT DES DONNÉES ---
   const reportData = useMemo(() => {
     return chantiers.map(chantier => {
       // 1. Calcul Coûts Directs (Matériel, Transport, etc.)
       const expenses = lignesCouts
         .filter(c => c.id_chantier === chantier.id_chantier)
-        .reduce((sum, c) => sum + c.montant_reel, 0);
+        .reduce((sum, c) => sum + (Number(c.montant_reel) || 0), 0);
 
-      // 2. Calcul Main d'oeuvre
+      // 2. Calcul Main d'oeuvre (Salaire x Jours)
       const labor = affectations
         .filter(a => a.id_chantier === chantier.id_chantier)
         .reduce((sum, a) => {
           const days = countDays(a.date_entree, a.date_sortie) - (a.jours_arret || 0);
-          return sum + (days * a.salaire_jour);
+          return sum + (days * (Number(a.salaire_jour) || 0));
         }, 0);
 
-      // 3. Calcul Versements (Chiffre d'affaire encaissé)
+      // + Main d'oeuvre locale (si non incluse dans affectations)
+      const laborLocal = (chantier.monteurs_locaux || []).reduce((sum: number, ml: any) => {
+        // Estimation simple si dates présentes
+        if (ml.salaire_jour) {
+          // Logic simplifiée ou à affiner selon vos données
+          return sum + (Number(ml.salaire_jour) * 22); // Moyenne 22j/mois par défaut si pas de dates précises
+        }
+        return sum;
+      }, 0);
+
+      // 3. Calcul Versements (Encaissements)
       const income = versements
         .filter(v => v.id_chantier === chantier.id_chantier)
-        .reduce((sum, v) => sum + v.montant, 0);
+        .reduce((sum, v) => sum + (Number(v.montant) || 0), 0);
 
-      const totalCost = expenses + labor;
-      const margin = chantier.budget_prevu - totalCost;
-      const marginPercent = chantier.budget_prevu > 0 ? (margin / chantier.budget_prevu) * 100 : 0;
+      const totalCost = expenses + labor + laborLocal;
+
+      // Budget: Utiliser montant_marche si budget_prevu est 0 ou vide
+      // Si aucun des deux, le budget est considéré comme 0 (ce qui donnera une marge négative)
+      const budget = Number(chantier.budget_prevu) || Number(chantier.montant_marche) || 0;
+
+      const margin = budget - totalCost;
+      const marginPercent = budget > 0 ? (margin / budget) * 100 : 0;
 
       return {
         id: chantier.id_chantier,
         nom: chantier.ref_chantier,
-        client: chantier.nom_client,
-        budget: chantier.budget_prevu,
+        client: chantier.nom_client || 'Client Inconnu',
+        budget: budget,
         reel: totalCost,
-        mo: labor,
+        mo: labor + laborLocal,
         frais: expenses,
         encaisse: income,
         marge: margin,
         margeP: marginPercent,
-        statut: chantier.statut
+        statut: chantier.statut,
+        date_debut: chantier.date_debut
       };
     });
   }, [chantiers, lignesCouts, affectations, versements]);
 
   // --- STATS GLOBALES ---
+  // (Filter logic could go here based on dateFilter)
   const totalBudget = reportData.reduce((acc, curr) => acc + curr.budget, 0);
   const totalReel = reportData.reduce((acc, curr) => acc + curr.reel, 0);
   const totalMarge = totalBudget - totalReel;
@@ -63,15 +82,15 @@ const Reports: React.FC = () => {
   const totalEncaisse = reportData.reduce((acc, curr) => acc + curr.encaisse, 0);
 
   // --- DATA POUR GRAPHIQUES ---
-  
-  // 1. Répartition des Coûts (Pie Chart)
+
+  // 1. Répartition des Coûts
   const costDistributionData = useMemo(() => {
     const categories: Record<string, number> = {
       'Main d\'œuvre': 0,
       'Transport': 0,
       'Hébergement': 0,
       'Restauration': 0,
-      'Matériel/Outillage': 0,
+      'Matériel': 0,
       'Sous-traitance': 0
     };
 
@@ -80,278 +99,344 @@ const Reports: React.FC = () => {
 
     // Frais
     lignesCouts.forEach(cout => {
-      if (cout.type_cout === 'transport_commun' || cout.type_cout === 'transport_local') categories['Transport'] += cout.montant_reel;
+      if (['transport_commun', 'transport_local'].includes(cout.type_cout)) categories['Transport'] += cout.montant_reel;
       else if (cout.type_cout === 'hebergement') categories['Hébergement'] += cout.montant_reel;
-      else if (cout.type_cout === 'restauration') categories['Restauration'] += cout.montant_reel;
-      else if (cout.type_cout === 'outillage_affecte') categories['Matériel/Outillage'] += cout.montant_reel;
+      else if (['restauration', 'repas'].includes(cout.type_cout)) categories['Restauration'] += cout.montant_reel;
+      else if (cout.type_cout === 'outillage_affecte') categories['Matériel'] += cout.montant_reel;
       else if (cout.type_cout === 'sous_traitant') categories['Sous-traitance'] += cout.montant_reel;
+      else {
+        // Autres
+        if (!categories['Autre']) categories['Autre'] = 0;
+        categories['Autre'] += cout.montant_reel;
+      }
     });
 
     return Object.keys(categories)
       .map(key => ({ name: key, value: categories[key] }))
-      .filter(item => item.value > 0);
+      .filter(item => item.value > 0)
+      .sort((a, b) => b.value - a.value);
   }, [reportData, lignesCouts]);
 
-  // 2. Performance Ouvriers (Top 5 Coûts)
+  // 2. Performance Ouvriers
   const workerStats = useMemo(() => {
     const stats: Record<number, { nom: string, total: number, jours: number }> = {};
-    
     affectations.forEach(aff => {
-       const days = countDays(aff.date_entree, aff.date_sortie) - (aff.jours_arret || 0);
-       const cost = days * aff.salaire_jour;
-       
-       if (!stats[aff.matricule]) {
-         stats[aff.matricule] = { nom: aff.nom_monteur, total: 0, jours: 0 };
-       }
-       stats[aff.matricule].total += cost;
-       stats[aff.matricule].jours += days;
+      const days = countDays(aff.date_entree, aff.date_sortie) - (aff.jours_arret || 0);
+      const cost = days * aff.salaire_jour;
+      if (!stats[aff.matricule]) {
+        stats[aff.matricule] = { nom: aff.nom_monteur, total: 0, jours: 0 };
+      }
+      stats[aff.matricule].total += cost;
+      stats[aff.matricule].jours += days;
     });
-
     return Object.values(stats).sort((a, b) => b.total - a.total).slice(0, 10);
   }, [affectations]);
 
   return (
-    <div className="space-y-8 pb-10">
-      <div className="flex flex-col md:flex-row justify-between items-center">
+    <div className="space-y-8 pb-10 max-w-[1920px] mx-auto font-inter bg-slate-50/50 min-h-screen p-6">
+
+      {/* HEADER */}
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">Rapports & Analytique</h2>
-          <p className="text-gray-500">Vision globale de la santé financière de l'entreprise</p>
+          <h2 className="text-2xl font-black text-slate-900 tracking-tight">Rapports & Statistiques</h2>
+          <p className="text-slate-500 font-medium mt-1">Analyse détaillée de la performance opérationnelle</p>
         </div>
-        <button 
-          onClick={() => window.print()}
-          className="flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 border border-gray-200"
-        >
-          <Printer className="w-4 h-4 mr-2" />
-          Imprimer Rapport
-        </button>
-      </div>
+        <div className="flex flex-wrap gap-3">
+          {/* Date Filter Mock */}
+          <div className="flex bg-gray-100 p-1 rounded-lg">
+            {['Mois', 'Trimestre', 'Année'].map((range) => (
+              <button
+                key={range}
+                onClick={() => setDateFilter(range.toLowerCase())}
+                className={`px-4 py-2 text-sm font-semibold rounded-md transition-all ${dateFilter === range.toLowerCase()
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+                  }`}
+              >
+                {range}
+              </button>
+            ))}
+          </div>
 
-      {/* Cartes KPI Globales */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-           <p className="text-sm font-medium text-gray-500 mb-1">Chiffre d'Affaires (Prévu)</p>
-           <h3 className="text-2xl font-bold text-gray-900">{formatCurrency(totalBudget)}</h3>
-           <div className="mt-2 text-xs text-green-600 font-medium flex items-center">
-             <DollarSign size={14} className="mr-1"/> Sur {reportData.length} chantiers
-           </div>
-        </div>
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-           <p className="text-sm font-medium text-gray-500 mb-1">Coûts Totaux (Réel)</p>
-           <h3 className="text-2xl font-bold text-gray-900">{formatCurrency(totalReel)}</h3>
-           <div className="mt-2 text-xs text-red-600 font-medium flex items-center">
-             <TrendingUp size={14} className="mr-1"/> Charges & Salaires
-           </div>
-        </div>
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-           <p className="text-sm font-medium text-gray-500 mb-1">Marge Nette</p>
-           <h3 className={`text-2xl font-bold ${totalMarge >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-             {formatCurrency(totalMarge)}
-           </h3>
-           <div className={`mt-2 text-xs font-bold px-2 py-0.5 rounded w-fit ${totalMarge >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-             {margeGlobalePercent.toFixed(1)}% de rentabilité
-           </div>
-        </div>
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-           <p className="text-sm font-medium text-gray-500 mb-1">Trésorerie (Encaissé)</p>
-           <h3 className="text-2xl font-bold text-slate-900">{formatCurrency(totalEncaisse)}</h3>
-           <div className="mt-2 w-full bg-gray-100 rounded-full h-1.5">
-              <div className="bg-slate-600 h-1.5 rounded-full" style={{ width: `${Math.min((totalEncaisse/totalBudget)*100, 100)}%` }}></div>
-           </div>
-           <p className="text-xs text-gray-400 mt-1">{(totalEncaisse/totalBudget*100).toFixed(0)}% recouvré</p>
+          <div className="h-10 w-[1px] bg-gray-200 mx-1 hidden sm:block"></div>
+
+          <button
+            onClick={() => window.print()}
+            className="flex items-center px-4 py-2 bg-white text-slate-700 rounded-lg hover:bg-slate-50 border border-gray-200 font-semibold shadow-sm transition-colors print:hidden"
+          >
+            <Printer className="w-4 h-4 mr-2" />
+            Imprimer
+          </button>
+          <button className="flex items-center px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 font-semibold shadow-sm transition-colors print:hidden">
+            <Download className="w-4 h-4 mr-2" />
+            Export Excel
+          </button>
         </div>
       </div>
 
-      {/* Navigation Onglets */}
-      <div className="border-b border-gray-200 flex gap-6 overflow-x-auto">
-        <button 
-          onClick={() => setActiveTab('financier')}
-          className={`pb-4 px-2 font-medium text-sm border-b-2 transition-colors flex items-center whitespace-nowrap ${activeTab === 'financier' ? 'border-red-600 text-red-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-        >
-          <TrendingUp className="w-4 h-4 mr-2" />
-          Rentabilité par Chantier
-        </button>
-        <button 
-          onClick={() => setActiveTab('analytique')}
-          className={`pb-4 px-2 font-medium text-sm border-b-2 transition-colors flex items-center whitespace-nowrap ${activeTab === 'analytique' ? 'border-red-600 text-red-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-        >
-          <PieIcon className="w-4 h-4 mr-2" />
-          Analyse des Coûts
-        </button>
-        <button 
-          onClick={() => setActiveTab('rh')}
-          className={`pb-4 px-2 font-medium text-sm border-b-2 transition-colors flex items-center whitespace-nowrap ${activeTab === 'rh' ? 'border-red-600 text-red-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-        >
-          <Users className="w-4 h-4 mr-2" />
-          Performance RH
-        </button>
+      {/* KPI GLOBAL CARDS */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:border-blue-300 transition-colors group">
+          <div className="flex justify-between items-start mb-4">
+            <span className="p-2 bg-blue-50 text-blue-600 rounded-lg"><DollarSign size={20} /></span>
+            <span className="text-xs font-bold bg-gray-100 text-gray-500 px-2 py-1 rounded">Budget Total</span>
+          </div>
+          <h3 className="text-3xl font-black text-slate-900">{formatCurrency(totalBudget)}</h3>
+          <p className="text-sm text-slate-500 mt-1">Prévu sur {reportData.length} chantiers</p>
+        </div>
+
+        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:border-red-300 transition-colors group">
+          <div className="flex justify-between items-start mb-4">
+            <span className="p-2 bg-red-50 text-red-600 rounded-lg"><TrendingUp size={20} /></span>
+            <span className="text-xs font-bold bg-gray-100 text-gray-500 px-2 py-1 rounded">Dépenses Réelles</span>
+          </div>
+          <h3 className="text-3xl font-black text-slate-900">{formatCurrency(totalReel)}</h3>
+          <p className="text-sm text-slate-500 mt-1 flex items-center">
+            Dont {((costDistributionData.find(c => c.name === "Main d'œuvre")?.value || 0) / totalReel * 100).toFixed(0)}% en salaire
+          </p>
+        </div>
+
+        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:border-emerald-300 transition-colors group">
+          <div className="flex justify-between items-start mb-4">
+            <span className="p-2 bg-emerald-50 text-emerald-600 rounded-lg"><PieIcon size={20} /></span>
+            <span className="text-xs font-bold bg-gray-100 text-gray-500 px-2 py-1 rounded">Marge Nette</span>
+          </div>
+          <h3 className={`text-3xl font-black ${totalMarge >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+            {formatCurrency(totalMarge)}
+          </h3>
+          <div className="mt-2 text-sm font-bold flex items-center gap-2">
+            <span className={`px-2 py-0.5 rounded text-xs ${margeGlobalePercent >= 20 ? 'bg-emerald-100 text-emerald-700' : 'bg-yellow-100 text-yellow-700'}`}>
+              {margeGlobalePercent.toFixed(1)}% Rentabilité
+            </span>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:border-slate-300 transition-colors group">
+          <div className="flex justify-between items-start mb-4">
+            <span className="p-2 bg-slate-100 text-slate-600 rounded-lg"><Wallet size={20} /></span>
+            <span className="text-xs font-bold bg-gray-100 text-gray-500 px-2 py-1 rounded">Encaissement</span>
+          </div>
+          <h3 className="text-3xl font-black text-slate-900">{formatCurrency(totalEncaisse)}</h3>
+          <div className="w-full bg-gray-100 rounded-full h-2 mt-3 overflow-hidden">
+            <div className="bg-slate-800 h-full rounded-full" style={{ width: `${Math.min((totalEncaisse / totalBudget) * 100, 100)}%` }}></div>
+          </div>
+          <p className="text-xs text-slate-400 mt-1 font-bold">{(totalEncaisse / totalBudget * 100).toFixed(0)}% Recouvré</p>
+        </div>
       </div>
 
-      {/* CONTENU ONGLET 1: FINANCIER */}
-      {activeTab === 'financier' && (
-        <div className="space-y-6">
-           <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
-             <h3 className="text-lg font-bold text-gray-800 mb-6">Comparatif Budget Prévu vs Réel</h3>
-             {/* Fix: Enforced height to prevent Recharts -1 height warning */}
-             <div className="w-full h-[300px]" style={{ minHeight: '300px' }}>
-               <ResponsiveContainer width="100%" height="100%">
-                 <BarChart data={reportData.filter(d => d.statut === 'actif')}>
-                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                   <XAxis dataKey="nom" tick={{fontSize: 12}} interval={0} angle={-15} textAnchor="end" height={60}/>
-                   <YAxis hide />
-                   <Tooltip 
-                     formatter={(value: number) => formatCurrency(value)}
-                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                   />
-                   <Legend />
-                   <Bar dataKey="budget" name="Budget Prévu" fill="#334155" radius={[4, 4, 0, 0]} barSize={30} />
-                   <Bar dataKey="reel" name="Coût Réel" fill="#b91c1c" radius={[4, 4, 0, 0]} barSize={30} />
-                 </BarChart>
-               </ResponsiveContainer>
-             </div>
-           </div>
+      {/* MAIN CONTENT WITH TABS */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 min-h-[500px]">
+        {/* TAB HEADER */}
+        <div className="border-b border-gray-200 px-6 py-4 flex items-center gap-8 overflow-x-auto">
+          <button
+            onClick={() => setActiveTab('financier')}
+            className={`pb-2 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'financier' ? 'border-red-600 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+          >
+            <TrendingUp size={16} /> Finance & Rentabilité
+          </button>
+          <button
+            onClick={() => setActiveTab('analytique')}
+            className={`pb-2 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'analytique' ? 'border-red-600 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+          >
+            <PieIcon size={16} /> Analyse des Coûts
+          </button>
+          <button
+            onClick={() => setActiveTab('rh')}
+            className={`pb-2 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${activeTab === 'rh' ? 'border-red-600 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+          >
+            <Users size={16} /> Performance RH
+          </button>
+        </div>
 
-           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
-                 <h3 className="font-bold text-gray-800">Détail par Chantier</h3>
+        {/* TAB CONTENT */}
+        <div className="p-6">
+
+          {/* 1. FINANCIER */}
+          {activeTab === 'financier' && (
+            <div className="space-y-8 animate-in fade-in duration-300">
+              {/* Chart */}
+              <div className="bg-slate-50 p-6 rounded-xl border border-gray-100">
+                <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
+                  <TrendingUp className="text-slate-400" size={20} />
+                  Comparatif Budget vs Réel par Chantier
+                </h3>
+                <div className="h-[350px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={reportData.filter(d => d.statut === 'actif' || d.statut === 'terminé')}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                      <XAxis dataKey="nom" tick={{ fontSize: 12, fill: '#64748b' }} interval={0} angle={-20} textAnchor="end" height={80} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} tickFormatter={(val) => `${val / 1000}k`} />
+                      <RechartsTooltip
+                        formatter={(value: number) => formatCurrency(value)}
+                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
+                        cursor={{ fill: '#f1f5f9' }}
+                      />
+                      <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                      <Bar dataKey="budget" name="Budget Prévu" fill="#334155" radius={[4, 4, 0, 0]} barSize={20} />
+                      <Bar dataKey="reel" name="Coût Réel" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={20} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left whitespace-nowrap md:whitespace-normal">
-                  <thead className="bg-gray-50 text-gray-500 uppercase text-xs">
+
+              {/* Table */}
+              <div>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="font-bold text-slate-800 text-lg">Détail des Marges</h3>
+                  <button className="text-sm font-semibold text-blue-600 hover:text-blue-700 btn-link">Télécharger CSV</button>
+                </div>
+                <div className="overflow-hidden rounded-xl border border-gray-200">
+                  <table className="w-full text-sm text-left">
+                    <thead className="bg-gray-50 text-slate-500 font-semibold uppercase text-xs">
+                      <tr>
+                        <th className="px-6 py-4">Chantier / Client</th>
+                        <th className="px-6 py-4 text-right">Budget</th>
+                        <th className="px-6 py-4 text-right">Dépenses Directes</th>
+                        <th className="px-6 py-4 text-right">Main d'œuvre</th>
+                        <th className="px-6 py-4 text-right">Total Coûts</th>
+                        <th className="px-6 py-4 text-right">Marge Nette</th>
+                        <th className="px-6 py-4 text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {reportData.map((item, idx) => (
+                        <tr key={item.id} className="hover:bg-slate-50 transition-colors group">
+                          <td className="px-6 py-4">
+                            <div className="font-bold text-slate-900">{item.nom}</div>
+                            <div className="text-xs text-slate-500 font-medium">{item.client}</div>
+                          </td>
+                          <td className="px-6 py-4 text-right text-slate-600 font-medium">{formatCurrency(item.budget)}</td>
+                          <td className="px-6 py-4 text-right text-slate-500">{formatCurrency(item.frais)}</td>
+                          <td className="px-6 py-4 text-right text-slate-500">{formatCurrency(item.mo)}</td>
+                          <td className="px-6 py-4 text-right font-bold text-slate-800">{formatCurrency(item.reel)}</td>
+                          <td className={`px-6 py-4 text-right font-bold ${item.marge >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                            {formatCurrency(item.marge)}
+                            <span className="block text-[10px] opacity-70">{item.margeP.toFixed(1)}%</span>
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wide border ${item.statut === 'actif' ? 'bg-blue-50 text-blue-600 border-blue-100' :
+                              item.statut === 'terminé' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                'bg-gray-50 text-gray-600 border-gray-100'
+                              }`}>
+                              {item.statut}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 2. ANALYTIQUE */}
+          {activeTab === 'analytique' && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in fade-in duration-300">
+              <div className="bg-slate-50 p-6 rounded-xl border border-gray-100 flex flex-col items-center justify-center">
+                <h3 className="text-lg font-bold text-slate-800 mb-2 w-full text-left">Répartition Globale</h3>
+                <div className="h-[350px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={costDistributionData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={80}
+                        outerRadius={120}
+                        paddingAngle={4}
+                        dataKey="value"
+                      >
+                        {costDistributionData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="none" />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip formatter={(value: number) => formatCurrency(value)} />
+                      <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-lg font-bold text-slate-800 mb-4">Détail des Postes de Coûts</h3>
+                <div className="space-y-3">
+                  {costDistributionData.map((item, index) => (
+                    <div key={item.name} className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-xl hover:border-blue-200 hover:shadow-sm transition-all">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shadow-sm" style={{ backgroundColor: COLORS[index % COLORS.length] }}>
+                          {((item.value / totalReel) * 100).toFixed(0)}%
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-800">{item.name}</p>
+                          <div className="w-24 bg-gray-100 h-1.5 rounded-full mt-1">
+                            <div className="h-full rounded-full" style={{ width: `${(item.value / totalReel) * 100}%`, backgroundColor: COLORS[index % COLORS.length] }}></div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-slate-900">{formatCurrency(item.value)}</p>
+                        <p className="text-xs text-slate-400">Total sur période</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 3. RH */}
+          {activeTab === 'rh' && (
+            <div className="space-y-6 animate-in fade-in duration-300">
+              <div className="bg-slate-900 rounded-xl p-6 text-white flex justify-between items-center shadow-lg">
+                <div>
+                  <h3 className="font-bold text-xl">Top 10 Salaires Versés</h3>
+                  <p className="text-slate-400 text-sm">Analyse de la masse salariale par collaborateur</p>
+                </div>
+                <Users size={32} className="text-slate-700" />
+              </div>
+
+              <div className="overflow-hidden rounded-xl border border-gray-200">
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-gray-50 text-slate-500 font-semibold uppercase text-xs">
                     <tr>
-                      <th className="px-6 py-3">Chantier</th>
-                      <th className="px-6 py-3 text-right">Budget</th>
-                      <th className="px-6 py-3 text-right">Main d'œuvre</th>
-                      <th className="px-6 py-3 text-right">Frais Divers</th>
-                      <th className="px-6 py-3 text-right">Total Réel</th>
-                      <th className="px-6 py-3 text-right">Marge</th>
-                      <th className="px-6 py-3 text-center">%</th>
+                      <th className="px-6 py-4">Rang</th>
+                      <th className="px-6 py-4">Collaborateur</th>
+                      <th className="px-6 py-4 text-center">Jours Travaillés</th>
+                      <th className="px-6 py-4 text-right">Salaire Total</th>
+                      <th className="px-6 py-4 text-right">Moyenne / Jour</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {reportData.map(item => (
-                      <tr key={item.id} className="hover:bg-gray-50">
+                    {workerStats.map((stat, index) => (
+                      <tr key={index} className="hover:bg-slate-50 transition-colors">
                         <td className="px-6 py-4">
-                          <div className="font-bold text-gray-900">{item.nom}</div>
-                          <div className="text-xs text-gray-500">{item.client}</div>
-                        </td>
-                        <td className="px-6 py-4 text-right font-medium text-slate-600">{formatCurrency(item.budget)}</td>
-                        <td className="px-6 py-4 text-right text-gray-600">{formatCurrency(item.mo)}</td>
-                        <td className="px-6 py-4 text-right text-gray-600">{formatCurrency(item.frais)}</td>
-                        <td className="px-6 py-4 text-right font-bold text-gray-900">{formatCurrency(item.reel)}</td>
-                        <td className={`px-6 py-4 text-right font-bold ${item.marge >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {formatCurrency(item.marge)}
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <span className={`px-2 py-1 rounded text-xs font-bold ${
-                            item.margeP < 0 ? 'bg-red-100 text-red-700' :
-                            item.margeP < 15 ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'
-                          }`}>
-                            {item.margeP.toFixed(0)}%
+                          <span className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${index < 3 ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-500'
+                            }`}>
+                            #{index + 1}
                           </span>
                         </td>
+                        <td className="px-6 py-4 font-bold text-slate-900">{stat.nom}</td>
+                        <td className="px-6 py-4 text-center">
+                          <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded font-bold text-xs border border-slate-200">
+                            {stat.jours}j
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right font-bold text-slate-800">{formatCurrency(stat.total)}</td>
+                        <td className="px-6 py-4 text-right text-slate-500 font-medium">{formatCurrency(stat.total / (stat.jours || 1))}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-           </div>
-        </div>
-      )}
+            </div>
+          )}
 
-      {/* CONTENU ONGLET 2: ANALYTIQUE */}
-      {activeTab === 'analytique' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-           <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
-             <h3 className="text-lg font-bold text-gray-800 mb-2">Répartition des Coûts</h3>
-             <p className="text-sm text-gray-500 mb-6">Où va l'argent de l'entreprise ?</p>
-             {/* Fix: Enforced height to prevent Recharts -1 height warning */}
-             <div className="w-full h-[300px] flex justify-center" style={{ minHeight: '300px' }}>
-               <ResponsiveContainer width="100%" height="100%">
-                 <PieChart>
-                   <Pie
-                     data={costDistributionData}
-                     cx="50%"
-                     cy="50%"
-                     innerRadius={60}
-                     outerRadius={100}
-                     fill="#8884d8"
-                     paddingAngle={5}
-                     dataKey="value"
-                   >
-                     {costDistributionData.map((entry, index) => (
-                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                     ))}
-                   </Pie>
-                   <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                   <Legend verticalAlign="bottom" height={36} iconType="circle"/>
-                 </PieChart>
-               </ResponsiveContainer>
-             </div>
-           </div>
-
-           <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
-             <h3 className="text-lg font-bold text-gray-800 mb-4">Détails par poste</h3>
-             <ul className="space-y-4">
-               {costDistributionData.map((item, index) => (
-                 <li key={item.name} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                   <div className="flex items-center">
-                     <div className="w-3 h-3 rounded-full mr-3" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
-                     <span className="text-gray-700 font-medium">{item.name}</span>
-                   </div>
-                   <div className="text-right">
-                     <span className="block font-bold text-gray-900">{formatCurrency(item.value)}</span>
-                     <span className="text-xs text-gray-500">{((item.value / totalReel) * 100).toFixed(1)}% du total</span>
-                   </div>
-                 </li>
-               ))}
-             </ul>
-           </div>
         </div>
-      )}
-
-      {/* CONTENU ONGLET 3: RH */}
-      {activeTab === 'rh' && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="px-6 py-6 border-b border-gray-100 flex justify-between items-center">
-             <div>
-               <h3 className="font-bold text-lg text-gray-800">Top Salaires Versés</h3>
-               <p className="text-sm text-gray-500">Cumul des salaires par monteur sur la période</p>
-             </div>
-             <Users className="text-slate-200 w-8 h-8"/>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left whitespace-nowrap md:whitespace-normal">
-              <thead className="bg-gray-50 text-gray-500 uppercase text-xs">
-                <tr>
-                  <th className="px-6 py-4">Monteur</th>
-                  <th className="px-6 py-4 text-center">Jours Travaillés</th>
-                  <th className="px-6 py-4 text-right">Total Salaire Versé</th>
-                  <th className="px-6 py-4 text-right">Coût Moyen / Jour</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {workerStats.map((stat, index) => (
-                  <tr key={index} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 font-bold text-gray-900 flex items-center">
-                      <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center text-xs mr-3 border">
-                        {index + 1}
-                      </span>
-                      {stat.nom}
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <span className="bg-slate-100 text-slate-700 px-2 py-1 rounded font-bold text-xs">
-                        {stat.jours} jours
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right font-bold text-gray-800">{formatCurrency(stat.total)}</td>
-                    <td className="px-6 py-4 text-right text-gray-500">{formatCurrency(stat.total / (stat.jours || 1))}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      </div>
 
     </div>
   );

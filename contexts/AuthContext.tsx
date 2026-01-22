@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { toast } from 'sonner';
 import { User, AppModule, UserRole } from '../types';
 import { supabase } from '../services/supabaseClient';
 
@@ -207,7 +208,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }
         } else {
           debug('❌ Account is inactive - logging out');
-          alert("Votre compte a été désactivé par un administrateur.");
+          toast.error("Votre compte a été désactivé par un administrateur.");
           await supabase.auth.signOut();
           setUser(null);
           localStorage.removeItem('user');

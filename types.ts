@@ -1,12 +1,34 @@
 
-export type StatutChantier = 'actif' | 'terminé' | 'archivé';
-export type TypeCout = 'transport_commun' | 'hebergement' | 'restauration' | 'transport_local' | 'outillage_affecte' | 'sous_traitant';
+export type StatutChantier = 'actif' | 'terminé' | 'archivé' | 'en_instance';
+export type TypeCout = 'transport_commun' | 'hebergement' | 'restauration' | 'transport_local' | 'outillage_affecte' | 'sous_traitant' | 'autre' | 'main_doeuvre_extra' | 'prime' | 'heures_supp';
 export type TypeMouvement = 'ENTREE' | 'SORTIE';
 export type TypeContrat = 'CDI' | 'CDD' | 'ANAPEC' | 'FREELANCE';
 
+// ... (skipping unchanged parts)
+
+export interface MouvementStock {
+  id_mouvement: string;
+  id_article: string;
+  type: TypeMouvement;
+  quantite: number;
+  date: string;
+  id_chantier?: string; // Si sortie vers chantier
+  motif?: string;
+  beneficiaire_id?: string; // ID monteur/intérimaire pour tracing individuel
+}
+
 export type UserRole = 'ADMIN' | 'MANAGER' | 'USER' | 'COMPTABILITE' | 'TECHNIQUE' | 'ADMINISTRATIF';
 export type RoleMonteur = 'OUVRIER' | 'CHEF_CHANTIER';
-export type AppModule = 'dashboard' | 'chantiers' | 'stock' | 'clients' | 'monteurs' | 'rapports' | 'admin';
+export type AppModule = 'dashboard' | 'chantiers' | 'stock' | 'clients' | 'monteurs' | 'rapports' | 'admin' | 'matrice' | 'planning' | 'chef_chantier' | 'pointage_mensuel';
+
+export type StadeAvancement = 'démarrage' | 'en_cours' | 'avancé' | 'presque_terminé' | 'finalisé';
+
+export interface HistoriqueAvancement {
+  date: string;
+  pourcentage: number;
+  commentaire?: string;
+  stade: StadeAvancement;
+}
 
 export interface User {
   id: string;
@@ -44,6 +66,9 @@ export interface Monteur {
   actif: boolean;
   scan_cin_recto?: string | null;
   scan_cin_verso?: string | null;
+  ville_residence?: string; // Ville de résidence pour calculs frais déplacement
+  is_blacklisted?: boolean;
+  blacklist_reason?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -57,7 +82,9 @@ export interface LigneCout {
   quantite: number;
   montant_reel: number;
   commentaire?: string;
+  related_monteur_id?: string; // ID (matricule or local id) to link expense to a specific worker
   statut: 'validé' | 'en attente';
+  created_at?: string;
 }
 
 export interface AffectationMonteur {
@@ -68,7 +95,7 @@ export interface AffectationMonteur {
   salaire_jour: number;
   zone_travail: string;
   date_entree: string;
-  date_sortie: string;
+  date_sortie?: string; // Optional: if undefined, means currently active
   jours_arret: number;
 }
 
@@ -87,6 +114,22 @@ export interface MonteurLocal {
   cin: string;
   salaire_jour: number;
   jours_travailles: number;
+  date_debut?: string;
+  date_fin?: string;
+  ville_residence?: string;
+  type?: 'INTERIMAIRE' | 'PREVU';
+}
+
+
+// Nouvelle interface centralisée pour la gestion des intérimaires
+export interface Interimaire {
+  id: string; // UUID unique
+  cin: string; // Clé unique fonctionnelle
+  nom_complet: string;
+  telephone?: string;
+  is_blacklisted: boolean;
+  blacklist_reason?: string;
+  created_at?: string;
 }
 
 export interface Chantier {
@@ -98,6 +141,7 @@ export interface Chantier {
   nom_client: string;
   date_debut: string;
   date_fin: string;
+  duree_prevue?: number; // Durée en jours (pour la planification)
   budget_prevu: number;
   trans_compta: 'Manuel' | 'Auto';
   responsable_chantier: string;
@@ -108,10 +152,16 @@ export interface Chantier {
   ville_code: string;
   // Modification pour supporter la liste détaillée
   monteurs_locaux?: MonteurLocal[];
-  
+
   // Nouveaux champs demandés
   adresse?: string; // Adresse spécifique du chantier
   commentaire?: string; // Observations / Contraintes accès
+  chef_chantier?: string; // Chef de Chantier (Terrain)
+
+  // Avancement
+  taux_avancement?: number; // 0-100
+  stade_avancement?: StadeAvancement;
+  historique_avancement?: HistoriqueAvancement[];
 }
 
 export interface ArticleStock {
@@ -133,6 +183,7 @@ export interface MouvementStock {
   date: string;
   id_chantier?: string; // Si sortie vers chantier
   motif?: string;
+  beneficiaire_id?: string; // ID monteur/intérimaire pour tracing individuel
 }
 
 export interface DashboardStats {
@@ -143,4 +194,14 @@ export interface DashboardStats {
   globalDifference: number;
   margeMoyenne: number;
   alertCount: number;
+}
+
+export interface AuditLog {
+  id: string;
+  action: string; // 'DELETE_CHANTIER', 'BLACKLIST_TOGGLE', etc.
+  entity_type: 'chantier' | 'resource' | 'finance' | 'system';
+  entity_id: string;
+  details: any;
+  user_email?: string; // For display
+  created_at: string;
 }

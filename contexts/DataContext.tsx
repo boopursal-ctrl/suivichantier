@@ -1,6 +1,6 @@
 // contexts/DataContext.tsx - VERSION CORRIGÉE
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Chantier, Monteur, Client, LigneCout, AffectationMonteur, Versement, ArticleStock, MouvementStock, User, UserRole } from '../types';
+import { Chantier, Monteur, Client, LigneCout, AffectationMonteur, Versement, ArticleStock, MouvementStock, User, UserRole, Interimaire } from '../types';
 import { supabase } from '../services/supabaseClient';
 import { useAuth } from './AuthContext';
 
@@ -18,6 +18,7 @@ interface DataContextType {
   affectations: AffectationMonteur[];
   addAffectation: (a: AffectationMonteur) => Promise<void>;
   removeAffectation: (id: string) => Promise<void>;
+  updateAffectation: (a: AffectationMonteur) => Promise<void>;
 
   lignesCouts: LigneCout[];
   addCout: (c: LigneCout) => Promise<void>;
@@ -39,11 +40,17 @@ interface DataContextType {
 
   articles: ArticleStock[];
   addArticle: (a: ArticleStock) => Promise<void>;
+  stock: ArticleStock[]; // Alias for articles
   mouvements: MouvementStock[];
   addMouvement: (m: MouvementStock) => Promise<void>;
 
   loadingData: boolean;
   refreshData: () => Promise<void>;
+
+  interimaires: Interimaire[];
+  addInterimaire: (i: Interimaire) => Promise<void>;
+  updateInterimaire: (i: Interimaire) => Promise<void>;
+  logAction: (action: string, entityType: 'chantier' | 'resource' | 'finance' | 'system', entityId: string, details?: any) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -62,6 +69,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [users, setUsers] = useState<User[]>([]);
   const [articles, setArticles] = useState<ArticleStock[]>([]);
   const [mouvements, setMouvements] = useState<MouvementStock[]>([]);
+  const [interimaires, setInterimaires] = useState<Interimaire[]>([]);
 
   // Charger toutes les données
   const fetchAllData = async () => {
@@ -84,7 +92,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         versementsResult,
         articlesResult,
         mouvementsResult,
-        profilesResult
+        profilesResult,
+        interimairesResult
       ] = await Promise.all([
         supabase.from('monteurs').select('*').order('nom_monteur', { ascending: true }),
         supabase.from('chantiers').select('*'),
@@ -94,7 +103,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         supabase.from('versements').select('*'),
         supabase.from('articles_stock').select('*'),
         supabase.from('mouvements_stock').select('*').order('date', { ascending: false }),
-        supabase.from('profiles').select('*')
+        supabase.from('profiles').select('*'),
+        supabase.from('interimaires').select('*').order('nom_complet', { ascending: true })
       ]);
 
       // Gérer les résultats
@@ -111,6 +121,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setVersements(versementsResult.data || []);
       setArticles(articlesResult.data || []);
       setMouvements(mouvementsResult.data || []);
+      setInterimaires(interimairesResult.data || []);
 
       // Transformer les profiles en users
       if (profilesResult.data) {
@@ -162,14 +173,20 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.log('➕ Adding monteur:', monteur);
 
       // Préparer les données pour Supabase
+      // NOTE: On exclut temporairement ville_residence si la colonne n'existe pas encore en base pour éviter l'erreur 400
+      const { ville_residence, ...rest } = monteur;
+
       const monteurData = {
-        ...monteur,
-        // Convertir les chaînes vides en NULL pour les dates
-        date_naissance: monteur.date_naissance || null,
-        date_debut_contrat: monteur.date_debut_contrat || new Date().toISOString().split('T')[0],
-        // S'assurer que tous les champs texte ont des valeurs par défaut
+        matricule: monteur.matricule,
+        nom_monteur: monteur.nom_monteur,
         cin: monteur.cin || null,
         telephone: monteur.telephone || null,
+        date_naissance: monteur.date_naissance || null,
+        date_debut_contrat: monteur.date_debut_contrat || new Date().toISOString().split('T')[0],
+        type_contrat: monteur.type_contrat,
+        role_monteur: monteur.role_monteur,
+        salaire_jour: monteur.salaire_jour,
+        actif: monteur.actif,
         scan_cin_recto: monteur.scan_cin_recto || null,
         scan_cin_verso: monteur.scan_cin_verso || null
       };
@@ -261,12 +278,20 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.log('➕ Adding chantier:', chantier);
 
       const { id_chantier, ...rest } = chantier;
+
+      // Sanitize payload for Supabase
+      const payload = {
+        ...rest,
+        date_debut: chantier.date_debut || null, // Convert empty string to null
+        date_fin: chantier.date_fin || null,     // Convert empty string to null
+        duree_prevue: chantier.duree_prevue || 1,
+        statut: chantier.statut || 'en_instance',
+        monteurs_locaux: chantier.monteurs_locaux || []
+      };
+
       const { data, error } = await supabase
         .from('chantiers')
-        .insert([{
-          ...rest,
-          monteurs_locaux: chantier.monteurs_locaux || []
-        }])
+        .insert([payload])
         .select()
         .single();
 
@@ -291,6 +316,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .from('chantiers')
         .update({
           ...chantier,
+          date_debut: chantier.date_debut || null,
+          date_fin: chantier.date_fin || null,
+          duree_prevue: chantier.duree_prevue || 1,
           monteurs_locaux: chantier.monteurs_locaux || []
         })
         .eq('id_chantier', chantier.id_chantier);
@@ -309,8 +337,26 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // LOGGING FUNCTION
+  const logAction = async (action: string, entityType: 'chantier' | 'resource' | 'finance' | 'system', entityId: string, details?: any) => {
+    if (!user) return;
+    try {
+      const { error } = await supabase.from('audit_logs').insert([{
+        action,
+        entity_type: entityType,
+        entity_id: entityId,
+        details: details || {},
+        respo_user_id: user.id
+      }]);
+      if (error) console.error("Error logging action", error);
+    } catch (e) {
+      console.error("Exception logging", e);
+    }
+  };
+
   const deleteChantier = async (id: string) => {
     try {
+      const chantierToDelete = chantiers.find(c => c.id_chantier === id);
       const { error } = await supabase
         .from('chantiers')
         .delete()
@@ -322,17 +368,25 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       setChantiers(prev => prev.filter(c => c.id_chantier !== id));
+      await logAction('DELETE_CHANTIER', 'chantier', id, { ref: chantierToDelete?.ref_chantier, nom: chantierToDelete?.nom_client });
     } catch (error) {
       console.error('❌ Exception deleting chantier:', error);
       throw error;
     }
   };
 
-  // ... Les autres fonctions restent similaires ...
+  // ... (other functions remain same, but we skip them in replace block if possible, strictly modifying target)
+  // Since deleteChantier is far from updateInterimaire, I will use multiple ReplaceChunks in next tool call or handle context value first.
+  // Actually, I can just define logAction and update deleteChantier here, then update updateInterimaire separately or via multi_replace.
+  // Let's do multi_replace to be safe and efficient.
+
+  // Wait, I am in replace_file_content. I will switch to multi_replace_file_content for safety.
+  // Just implementing logAction and deleteChantier modification here.
 
   const value: DataContextType = {
     loadingData,
     refreshData,
+    logAction,
     chantiers, addChantier, updateChantier, deleteChantier,
     monteurs, addMonteur, updateMonteur, deleteMonteur,
     affectations,
@@ -354,6 +408,16 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setAffectations(prev => prev.filter(a => a.id_affectation !== id));
       } catch (error) {
         console.error('Error removing affectation:', error);
+        throw error;
+      }
+    },
+    updateAffectation: async (a) => {
+      try {
+        const { error } = await supabase.from('affectations').update(a).eq('id_affectation', a.id_affectation);
+        if (error) throw error;
+        setAffectations(prev => prev.map(aff => aff.id_affectation === a.id_affectation ? a : aff));
+      } catch (error) {
+        console.error('Error updating affectation:', error);
         throw error;
       }
     },
@@ -537,6 +601,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     },
     articles,
+    stock: articles, // Export articles as 'stock' alias
     addArticle: async (a) => {
       try {
         const { id_article, ...rest } = a;
@@ -551,35 +616,77 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     mouvements,
     addMouvement: async (m) => {
       try {
-        const { id_mouvement, ...rest } = m;
-        const { data: moveData, error: moveError } = await supabase.from('mouvements_stock').insert([rest]).select();
+        // Prepare payload: omit client-side ID to let DB generate UUID if needed, 
+        // or ensure it matches DB expectations. 
+        // Assuming DB columns: id_article, type, quantite, date, id_chantier (nullable), motif
+        const payload = {
+          id_article: m.id_article,
+          type: m.type,
+          quantite: m.quantite,
+          date: m.date,
+          id_chantier: m.id_chantier || null, // Ensure null if undefined
+          motif: m.motif
+        };
+
+        const { data: moveData, error: moveError } = await supabase.from('mouvements_stock').insert([payload]).select();
 
         if (moveError) throw moveError;
 
         if (moveData) {
+          // Use the returned real data from DB
           setMouvements(prev => [moveData[0] as MouvementStock, ...prev]);
 
-          // Update article quantity
-          const article = articles.find(a => a.id_article === m.id_article);
-          if (article) {
-            const newQty = m.type === 'ENTREE'
-              ? Number(article.quantite) + Number(m.quantite)
-              : Number(article.quantite) - Number(m.quantite);
+          // Update article quantity - FETCH FRESH FIRST to avoid race conditions
+          const { data: freshArticle } = await supabase
+            .from('articles_stock')
+            .select('quantite')
+            .eq('id_article', m.id_article)
+            .single();
 
-            const { error: artError } = await supabase
-              .from('articles_stock')
-              .update({ quantite: newQty })
-              .eq('id_article', article.id_article);
+          const currentQty = freshArticle ? Number(freshArticle.quantite) : 0;
 
-            if (artError) throw artError;
+          const newQty = m.type === 'ENTREE'
+            ? currentQty + Number(m.quantite)
+            : currentQty - Number(m.quantite);
 
-            setArticles(prev => prev.map(a =>
-              a.id_article === article.id_article ? { ...a, quantite: newQty } : a
-            ));
-          }
+          const { error: artError } = await supabase
+            .from('articles_stock')
+            .update({ quantite: newQty })
+            .eq('id_article', m.id_article);
+
+          if (artError) throw artError;
+
+          setArticles(prev => prev.map(a =>
+            a.id_article === m.id_article ? { ...a, quantite: newQty } : a
+          ));
         }
       } catch (error) {
         console.error('Error adding mouvement:', error);
+        throw error;
+      }
+    },
+    interimaires,
+    addInterimaire: async (i) => {
+      try {
+        const { data, error } = await supabase.from('interimaires').insert([i]).select().single();
+        if (error) throw error;
+        if (data) setInterimaires(prev => [...prev, data as Interimaire]);
+      } catch (error) {
+        console.error('Error adding interimaire:', error);
+        throw error;
+      }
+    },
+    updateInterimaire: async (i) => {
+      try {
+        const { error } = await supabase.from('interimaires').update(i).eq('id', i.id);
+        if (error) throw error;
+        setInterimaires(prev => prev.map(item => item.id === i.id ? i : item));
+
+        if (i.is_blacklisted) {
+          await logAction('BLACKLIST_ALERT', 'resource', i.id, { cin: i.cin, reason: i.blacklist_reason });
+        }
+      } catch (error) {
+        console.error('Error updating interimaire:', error);
         throw error;
       }
     }

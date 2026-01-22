@@ -1,0 +1,8 @@
+ALTER TABLE monteurs
+ADD COLUMN IF NOT EXISTS is_blacklisted BOOLEAN DEFAULT false,
+ADD COLUMN IF NOT EXISTS blacklist_reason TEXT,
+ADD COLUMN IF NOT EXISTS date_debut_contrat DATE,
+ADD COLUMN IF NOT EXISTS date_naissance DATE,
+ADD COLUMN IF NOT EXISTS telephone TEXT,
+ADD COLUMN IF NOT EXISTS scan_cin_recto TEXT,
+ADD COLUMN IF NOT EXISTS scan_cin_verso TEXT;

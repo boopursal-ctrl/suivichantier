@@ -5,50 +5,50 @@
 import { Chantier, Client, Monteur, LigneCout, AffectationMonteur, Versement, ArticleStock, MouvementStock, User } from '../types';
 
 export const USERS: User[] = [
-  { 
-    id: 'u1', 
-    email: 'admin@btp-maroc.ma', 
-    name: 'Mouad Admin', 
-    role: 'ADMIN', 
-    password: '123', 
-    isActive: true, 
-    allowedModules: ['dashboard', 'chantiers', 'stock', 'clients', 'monteurs', 'rapports', 'admin'] 
+  {
+    id: 'u1',
+    email: 'admin@btp-maroc.ma',
+    name: 'Mouad Admin',
+    role: 'ADMIN',
+    password: '123',
+    isActive: true,
+    allowedModules: ['dashboard', 'chantiers', 'stock', 'clients', 'monteurs', 'rapports', 'admin']
   },
-  { 
-    id: 'u2', 
-    email: 'manager@btp-maroc.ma', 
-    name: 'Karim Chef', 
-    role: 'MANAGER', 
-    password: '123', 
-    isActive: true, 
-    allowedModules: ['dashboard', 'chantiers', 'stock', 'monteurs'] 
+  {
+    id: 'u2',
+    email: 'manager@btp-maroc.ma',
+    name: 'Karim Chef',
+    role: 'MANAGER',
+    password: '123',
+    isActive: true,
+    allowedModules: ['dashboard', 'chantiers', 'stock', 'monteurs']
   },
-  { 
-    id: 'u3', 
-    email: 'rh@btp-maroc.ma', 
-    name: 'Sarah RH', 
-    role: 'ADMINISTRATIF', 
-    password: '123', 
-    isActive: true, 
-    allowedModules: ['dashboard', 'monteurs', 'clients'] 
+  {
+    id: 'u3',
+    email: 'rh@btp-maroc.ma',
+    name: 'Sarah RH',
+    role: 'ADMINISTRATIF',
+    password: '123',
+    isActive: true,
+    allowedModules: ['dashboard', 'monteurs', 'clients']
   },
-  { 
-    id: 'u4', 
-    email: 'compta@btp-maroc.ma', 
-    name: 'Amine Finance', 
-    role: 'COMPTABILITE', 
-    password: '123', 
-    isActive: true, 
-    allowedModules: ['dashboard', 'rapports', 'chantiers'] 
+  {
+    id: 'u4',
+    email: 'compta@btp-maroc.ma',
+    name: 'Amine Finance',
+    role: 'COMPTABILITE',
+    password: '123',
+    isActive: true,
+    allowedModules: ['dashboard', 'rapports', 'chantiers']
   },
-  { 
-    id: 'u5', 
-    email: 'tech@btp-maroc.ma', 
-    name: 'Youssef Tech', 
-    role: 'TECHNIQUE', 
-    password: '123', 
-    isActive: true, 
-    allowedModules: ['dashboard', 'stock', 'chantiers'] 
+  {
+    id: 'u5',
+    email: 'tech@btp-maroc.ma',
+    name: 'Youssef Tech',
+    role: 'TECHNIQUE',
+    password: '123',
+    isActive: true,
+    allowedModules: ['dashboard', 'stock', 'chantiers']
   }
 ];
 
@@ -61,14 +61,14 @@ export const CLIENTS: Client[] = [
 ];
 
 export const MONTEURS: Monteur[] = [
-  { matricule: 208, nom_monteur: 'OMAR', salaire_jour: 120, actif: true, cin: 'KB123456', role_monteur: 'OUVRIER' },
-  { matricule: 237, nom_monteur: 'NABIL', salaire_jour: 100, actif: true, cin: 'J456123', role_monteur: 'OUVRIER' },
-  { matricule: 236, nom_monteur: 'MOUAD', salaire_jour: 100, actif: true, cin: 'BE987654', role_monteur: 'OUVRIER' },
-  { matricule: 138, nom_monteur: 'ABDELGHAFOUR', salaire_jour: 100, actif: true, cin: 'WA123456', role_monteur: 'OUVRIER' },
-  { matricule: 159, nom_monteur: 'SAID', salaire_jour: 150, actif: true, cin: 'G123456', role_monteur: 'CHEF_CHANTIER' }, // Responsable
-  { matricule: 238, nom_monteur: 'ABDELOUAFI', salaire_jour: 100, actif: true, cin: 'D987654', role_monteur: 'OUVRIER' },
-  { matricule: 239, nom_monteur: 'SALAH', salaire_jour: 100, actif: true, cin: 'F123456', role_monteur: 'OUVRIER' },
-  { matricule: 103, nom_monteur: 'KHALID', salaire_jour: 120, actif: true, cin: 'T123456', role_monteur: 'CHEF_CHANTIER' },
+  { matricule: 208, nom_monteur: 'OMAR', salaire_jour: 120, actif: true, cin: 'KB123456', role_monteur: 'OUVRIER', type_contrat: 'CDI' },
+  { matricule: 237, nom_monteur: 'NABIL', salaire_jour: 100, actif: true, cin: 'J456123', role_monteur: 'OUVRIER', type_contrat: 'CDD' },
+  { matricule: 236, nom_monteur: 'MOUAD', salaire_jour: 100, actif: true, cin: 'BE987654', role_monteur: 'OUVRIER', type_contrat: 'ANAPEC' },
+  { matricule: 138, nom_monteur: 'ABDELGHAFOUR', salaire_jour: 100, actif: true, cin: 'WA123456', role_monteur: 'OUVRIER', type_contrat: 'CDI' },
+  { matricule: 159, nom_monteur: 'SAID', salaire_jour: 150, actif: true, cin: 'G123456', role_monteur: 'CHEF_CHANTIER', type_contrat: 'CDI' }, // Responsable
+  { matricule: 238, nom_monteur: 'ABDELOUAFI', salaire_jour: 100, actif: true, cin: 'D987654', role_monteur: 'OUVRIER', type_contrat: 'CDD' },
+  { matricule: 239, nom_monteur: 'SALAH', salaire_jour: 100, actif: true, cin: 'F123456', role_monteur: 'OUVRIER', type_contrat: 'CDD' },
+  { matricule: 103, nom_monteur: 'KHALID', salaire_jour: 120, actif: true, cin: 'T123456', role_monteur: 'CHEF_CHANTIER', type_contrat: 'CDI' },
 ];
 
 export const CHANTIERS: Chantier[] = [
@@ -91,7 +91,14 @@ export const CHANTIERS: Chantier[] = [
     ville_code: '535',
     adresse: 'Zone Sud - Extension B',
     commentaire: 'Attention accès limité le weekend.',
-    monteurs_locaux: []
+    monteurs_locaux: [],
+    taux_avancement: 75,
+    stade_avancement: 'avancé',
+    historique_avancement: [
+      { date: '2024-06-10', pourcentage: 10, stade: 'démarrage', commentaire: 'Installation du chantier' },
+      { date: '2024-06-20', pourcentage: 50, stade: 'en_cours', commentaire: 'Travaux principaux en cours' },
+      { date: '2024-07-01', pourcentage: 75, stade: 'avancé', commentaire: 'Début des finitions' }
+    ]
   },
   {
     id_chantier: '2',
@@ -115,6 +122,12 @@ export const CHANTIERS: Chantier[] = [
     monteurs_locaux: [
       { id: 'ml1', nom_complet: 'Ahmed Intérim', cin: 'J998877', salaire_jour: 100, jours_travailles: 17 },
       { id: 'ml2', nom_complet: 'Yassine Helper', cin: 'J112233', salaire_jour: 100, jours_travailles: 17 }
+    ],
+    taux_avancement: 25,
+    stade_avancement: 'en_cours',
+    historique_avancement: [
+      { date: '2024-06-03', pourcentage: 10, stade: 'démarrage', commentaire: 'Installation' },
+      { date: '2024-06-15', pourcentage: 25, stade: 'en_cours', commentaire: 'Début travaux' }
     ]
   },
   {
@@ -136,7 +149,10 @@ export const CHANTIERS: Chantier[] = [
     ville_code: '523',
     adresse: 'Usine Jorf',
     commentaire: 'En attente validation plans.',
-    monteurs_locaux: []
+    monteurs_locaux: [],
+    taux_avancement: 0,
+    stade_avancement: 'démarrage',
+    historique_avancement: []
   }
 ];
 
@@ -146,7 +162,7 @@ export const LIGNES_COUTS: LigneCout[] = [
   { id_cout: '102', id_chantier: '1', type_cout: 'hebergement', montant_prevu: 10800, cout_unitaire: 100, quantite: 108, montant_reel: 10500, statut: 'validé', commentaire: 'Appartement' },
   { id_cout: '103', id_chantier: '1', type_cout: 'restauration', montant_prevu: 7560, cout_unitaire: 70, quantite: 108, montant_reel: 7560, statut: 'validé' },
   { id_cout: '104', id_chantier: '1', type_cout: 'outillage_affecte', montant_prevu: 1500, cout_unitaire: 1500, quantite: 1, montant_reel: 2000, statut: 'en attente', commentaire: 'Achat perceuse urgence' },
-  
+
   // Chantier 2
   { id_cout: '201', id_chantier: '2', type_cout: 'transport_commun', montant_prevu: 200, cout_unitaire: 50, quantite: 4, montant_reel: 200, statut: 'validé' },
   { id_cout: '202', id_chantier: '2', type_cout: 'hebergement', montant_prevu: 6800, cout_unitaire: 100, quantite: 68, montant_reel: 6800, statut: 'validé' },
@@ -159,11 +175,11 @@ export const AFFECTATIONS: AffectationMonteur[] = [
   { id_affectation: 'a1', id_chantier: '1', matricule: 208, nom_monteur: 'OMAR', salaire_jour: 120, zone_travail: '535', date_entree: '2024-06-10', date_sortie: '2024-07-03', jours_arret: 0 },
   { id_affectation: 'a2', id_chantier: '1', matricule: 237, nom_monteur: 'NABIL', salaire_jour: 100, zone_travail: '535', date_entree: '2024-06-10', date_sortie: '2024-07-03', jours_arret: 0 },
   { id_affectation: 'a3', id_chantier: '1', matricule: 236, nom_monteur: 'MOUAD', salaire_jour: 100, zone_travail: '535', date_entree: '2024-06-15', date_sortie: '2024-07-03', jours_arret: 2 },
-  
+
   // Chantier 2 (AMA/COPAG EXEMPLE)
   { id_affectation: 'a4', id_chantier: '2', matricule: 103, nom_monteur: 'KHALID', salaire_jour: 120, zone_travail: '523', date_entree: '2024-06-03', date_sortie: '2024-06-20', jours_arret: 0 },
   { id_affectation: 'a5', id_chantier: '2', matricule: 236, nom_monteur: 'MOUAD', salaire_jour: 100, zone_travail: '523', date_entree: '2024-06-03', date_sortie: '2024-06-20', jours_arret: 0 },
-  
+
 ];
 
 export const VERSEMENTS: Versement[] = [

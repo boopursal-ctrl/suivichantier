@@ -1,17 +1,34 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
+import { Toaster, toast } from 'sonner';
 import Layout from './components/Layout';
-import Dashboard from './pages/Dashboard';
-import SiteList from './pages/SiteList';
-import SiteDetail from './pages/SiteDetail';
-import StockManagement from './pages/StockManagement';
-import Clients from './pages/Clients';
-import Monteurs from './pages/Monteurs';
-import AdminPanel from './pages/AdminPanel';
-import Reports from './pages/Reports';
+// Static import for critical path
 import Login from './pages/Login';
 import { DataProvider } from './contexts/DataContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { AppModule } from './types';
+
+// Lazy loading modules
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const SiteList = lazy(() => import('./pages/SiteList'));
+const SiteDetail = lazy(() => import('./pages/SiteDetail'));
+const StockManagement = lazy(() => import('./pages/StockManagement'));
+const Clients = lazy(() => import('./pages/Clients'));
+const Monteurs = lazy(() => import('./pages/Monteurs'));
+const AdminPanel = lazy(() => import('./pages/AdminPanel'));
+const Reports = lazy(() => import('./pages/Reports'));
+const ResourceMatrix = lazy(() => import('./pages/ResourceMatrix'));
+const Planning = lazy(() => import('./pages/Planning'));
+const ChefChantier = lazy(() => import('./pages/ChefChantier'));
+const PointageMensuel = lazy(() => import('./pages/PointageMensuel'));
+
+const LoadingScreen = () => (
+  <div className="flex h-full w-full items-center justify-center p-20">
+    <div className="flex flex-col items-center gap-4">
+      <div className="w-12 h-12 border-4 border-red-100 border-t-red-600 rounded-full animate-spin"></div>
+      <p className="text-gray-500 text-sm font-medium animate-pulse">Chargement du module...</p>
+    </div>
+  </div>
+);
 
 const AppContent: React.FC = () => {
   const { isAuthenticated, user, hasModuleAccess, loading: authLoading } = useAuth();
@@ -55,7 +72,7 @@ const AppContent: React.FC = () => {
       setCurrentPage(page);
       setSelectedSiteId(null);
     } else {
-      alert(`Accès refusé au module "${page}"`);
+      toast.error(`Accès refusé au module "${page}"`);
     }
   };
 
@@ -66,14 +83,14 @@ const AppContent: React.FC = () => {
 
   const renderContent = () => {
     const effectiveModule = currentPage === 'site_detail' ? 'chantiers' : currentPage;
-    
+
     if (currentPage !== 'dashboard' && !hasModuleAccess(effectiveModule as AppModule)) {
       return (
         <div className="flex flex-col items-center justify-center h-full p-8">
           <div className="text-6xl mb-4">🚫</div>
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Accès Refusé</h2>
           <p className="text-gray-600 mb-6">Vous n'avez pas les droits pour ce module.</p>
-          <button 
+          <button
             onClick={() => setCurrentPage('dashboard')}
             className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
@@ -83,14 +100,23 @@ const AppContent: React.FC = () => {
       );
     }
 
+    // Wrap lazy components in Suspense
+    return (
+      <Suspense fallback={<LoadingScreen />}>
+        {renderLazyContent()}
+      </Suspense>
+    );
+  };
+
+  const renderLazyContent = () => {
     if (currentPage === 'site_detail' && selectedSiteId) {
       return (
-        <SiteDetail 
-          chantierId={selectedSiteId} 
+        <SiteDetail
+          chantierId={selectedSiteId}
           onBack={() => {
             setCurrentPage('chantiers');
             setSelectedSiteId(null);
-          }} 
+          }}
         />
       );
     }
@@ -103,14 +129,20 @@ const AppContent: React.FC = () => {
       case 'monteurs': return <Monteurs />;
       case 'admin': return <AdminPanel />;
       case 'rapports': return <Reports />;
+      case 'matrice': return <ResourceMatrix />;
+      case 'planning': return <Planning />;
+      case 'pointage_mensuel': return <PointageMensuel />;
       default: return <Dashboard navigateTo={handleNavigate} />;
     }
   };
 
   return (
-    <Layout activePage={currentPage} onNavigate={handleNavigate} user={user}>
-      {renderContent()}
-    </Layout>
+    <>
+      <Toaster richColors position="top-right" />
+      <Layout activePage={currentPage} onNavigate={handleNavigate}>
+        {renderContent()}
+      </Layout>
+    </>
   );
 };
 
