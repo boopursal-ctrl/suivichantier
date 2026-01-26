@@ -46,6 +46,8 @@ const PointageMensuel = () => {
     const [selectedChantier, setSelectedChantier] = useState<string | null>(null);
     const [pointages, setPointages] = useState<PointageData>({});
     const [salaires, setSalaires] = useState<Record<string, number>>({});
+    const [isMobileView, setIsMobileView] = useState(false);
+    const [selectedMonteurMobile, setSelectedMonteurMobile] = useState<string | null>(null);
 
     // Frais et avances par monteur
     const [avances, setAvances] = useState<Record<string, number>>({});
@@ -69,6 +71,18 @@ const PointageMensuel = () => {
             setSalaires({});
         }
     }, [selectedChantier, currentDate]);
+
+    // Détection automatique de la vue mobile
+    useEffect(() => {
+        const checkMobile = () => {
+            setIsMobileView(window.innerWidth < 768);
+        };
+
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
 
     const loadPointages = async () => {
         if (!selectedChantier) return;
@@ -404,23 +418,33 @@ const PointageMensuel = () => {
     };
 
     return (
-        <div className="flex flex-col h-[calc(100vh-theme(spacing.24))] gap-6 max-w-[1920px] mx-auto">
+        <div className="flex flex-col h-[calc(100vh-theme(spacing.24))] gap-4 md:gap-6 max-w-[1920px] mx-auto">
 
             {/* Header */}
-            <div className="flex justify-between items-center pb-6 border-b-2 border-slate-200">
-                <div>
-                    <h1 className="text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
-                        <FileSpreadsheet className="w-8 h-8 text-emerald-600" />
-                        Pointage Mensuel
-                    </h1>
+            <div className="flex flex-col gap-4 pb-4 md:pb-6 border-b-2 border-slate-200">
+                <div className="flex justify-between items-start">
+                    <div>
+                        <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-2 md:gap-3">
+                            <FileSpreadsheet className="w-6 h-6 md:w-8 md:h-8 text-emerald-600" />
+                            Pointage Mensuel
+                        </h1>
+                    </div>
 
+                    {/* Toggle vue mobile/desktop */}
+                    <button
+                        onClick={() => setIsMobileView(!isMobileView)}
+                        className="md:hidden px-3 py-2 bg-gradient-to-r from-indigo-500 to-indigo-600 text-white rounded-xl font-bold shadow-lg flex items-center gap-2 text-sm"
+                    >
+                        {isMobileView ? <FileSpreadsheet className="w-4 h-4" /> : <Users className="w-4 h-4" />}
+                        {isMobileView ? 'Tableau' : 'Liste'}
+                    </button>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
                     <select
                         value={selectedChantier || ''}
                         onChange={e => setSelectedChantier(e.target.value)}
-                        className="px-4 py-2 border-2 border-slate-300 rounded-xl font-bold text-slate-800 focus:border-emerald-500 outline-none"
+                        className="flex-1 sm:flex-none px-3 md:px-4 py-2 border-2 border-slate-300 rounded-xl font-bold text-sm md:text-base text-slate-800 focus:border-emerald-500 outline-none"
                     >
                         <option value="">Sélectionner un chantier</option>
                         {chantiersActifs.map(c => (
@@ -430,44 +454,46 @@ const PointageMensuel = () => {
                         ))}
                     </select>
 
-                    <div className="flex items-center bg-white border-2 border-slate-300 rounded-xl p-1">
-                        <button onClick={() => setCurrentDate(d => subMonths(d, 1))} className="p-2 hover:bg-slate-100 rounded-lg">
-                            <ChevronLeft className="w-5 h-5" />
-                        </button>
-                        <div className="px-4 font-bold text-slate-800 min-w-[140px] text-center capitalize">
-                            {format(currentDate, 'MMMM yyyy', { locale: fr })}
-                        </div>
-                        <button onClick={() => setCurrentDate(d => addMonths(d, 1))} className="p-2 hover:bg-slate-100 rounded-lg">
-                            <ChevronRight className="w-5 h-5" />
-                        </button>
-                    </div>
-
                     <div className="flex items-center gap-2">
-                        <button
-                            onClick={handleAutoFill}
-                            className="hidden md:flex px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl font-bold hover:shadow-lg transition-all items-center gap-2"
-                            title="Remplir automatiquement les jours vides"
-                        >
-                            <Wand2 className="w-4 h-4" />
-                            <span className="hidden lg:inline">Auto-Remplir</span>
-                        </button>
+                        <div className="flex items-center bg-white border-2 border-slate-300 rounded-xl p-1">
+                            <button onClick={() => setCurrentDate(d => subMonths(d, 1))} className="p-2 hover:bg-slate-100 rounded-lg">
+                                <ChevronLeft className="w-4 h-4 md:w-5 md:h-5" />
+                            </button>
+                            <div className="px-3 md:px-4 font-bold text-slate-800 min-w-[100px] md:min-w-[140px] text-center capitalize text-sm md:text-base">
+                                {format(currentDate, 'MMMM yyyy', { locale: fr })}
+                            </div>
+                            <button onClick={() => setCurrentDate(d => addMonths(d, 1))} className="p-2 hover:bg-slate-100 rounded-lg">
+                                <ChevronRight className="w-4 h-4 md:w-5 md:h-5" />
+                            </button>
+                        </div>
 
-                        <button
-                            onClick={handleExportPDF}
-                            className="hidden md:flex px-4 py-2 bg-gradient-to-r from-slate-700 to-slate-800 text-white rounded-xl font-bold hover:shadow-lg transition-all items-center gap-2"
-                            title="Télécharger PDF"
-                        >
-                            <Download className="w-4 h-4" />
-                            <span className="hidden lg:inline">PDF</span>
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={handleAutoFill}
+                                className="hidden md:flex px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl font-bold hover:shadow-lg transition-all items-center gap-2"
+                                title="Remplir automatiquement les jours vides"
+                            >
+                                <Wand2 className="w-4 h-4" />
+                                <span className="hidden lg:inline">Auto-Remplir</span>
+                            </button>
 
-                        <button
-                            onClick={handleSave}
-                            className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-xl font-bold hover:from-emerald-700 hover:to-green-700 shadow-lg flex items-center gap-2"
-                        >
-                            <Save className="w-4 h-4" />
-                            Enregistrer
-                        </button>
+                            <button
+                                onClick={handleExportPDF}
+                                className="hidden md:flex px-4 py-2 bg-gradient-to-r from-slate-700 to-slate-800 text-white rounded-xl font-bold hover:shadow-lg transition-all items-center gap-2"
+                                title="Télécharger PDF"
+                            >
+                                <Download className="w-4 h-4" />
+                                <span className="hidden lg:inline">PDF</span>
+                            </button>
+
+                            <button
+                                onClick={handleSave}
+                                className="px-3 md:px-4 py-2 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-xl font-bold hover:from-emerald-700 hover:to-green-700 shadow-lg flex items-center gap-2 text-sm md:text-base"
+                            >
+                                <Save className="w-4 h-4" />
+                                <span className="hidden sm:inline">Enregistrer</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -584,73 +610,250 @@ const PointageMensuel = () => {
                             </div>
                         </div>
                     </div>
-                ) : (
-                    <div className="flex-1 overflow-auto bg-white rounded-2xl shadow-2xl border-2 border-slate-200">
-                        <div className="min-w-max">
+                ) : isMobileView && monteursChantier.length > 0 ? (
+                    // Vue Mobile Optimisée
+                    <div className="flex-1 overflow-auto bg-gradient-to-br from-slate-50 to-slate-100 rounded-2xl shadow-lg border-2 border-slate-200 p-2">
+                        {!selectedMonteurMobile ? (
+                            // Liste des monteurs en cartes compactes
+                            <div className="space-y-2">
+                                <div className="bg-white p-2 rounded-lg border border-indigo-200 mb-2">
+                                    <h3 className="text-sm font-bold text-indigo-900 flex items-center gap-2">
+                                        <Users className="w-4 h-4" />
+                                        Monteurs ({monteursChantier.length})
+                                    </h3>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    {monteursChantier.map(m => {
+                                        const total = Number(getMonthTotal(m.matricule));
+                                        const salaire = total * Number(salaires[m.matricule] || 120);
+
+                                        return (
+                                            <button
+                                                key={m.matricule}
+                                                onClick={() => setSelectedMonteurMobile(m.matricule)}
+                                                className="bg-white p-2.5 rounded-lg border-2 border-slate-200 hover:border-emerald-400 hover:shadow-md transition-all text-left active:scale-98"
+                                            >
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <div className="flex-1 min-w-0">
+                                                        <h4 className="font-bold text-slate-900 text-sm leading-tight truncate">{m.nom_monteur}</h4>
+                                                        <p className="text-[10px] text-slate-500 font-mono mt-0.5 truncate">{m.matricule}</p>
+                                                    </div>
+                                                    <div className="bg-gradient-to-br from-emerald-500 to-green-500 text-white px-2 py-1 rounded-md ml-2 flex-shrink-0">
+                                                        <p className="text-[9px] font-medium leading-tight">Total</p>
+                                                        <p className="text-base font-bold leading-tight">{total.toFixed(1)}</p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-1.5">
+                                                    <div className="bg-blue-50 p-1.5 rounded">
+                                                        <p className="text-[9px] text-blue-600 font-medium mb-0.5">Salaire/J</p>
+                                                        <p className="text-xs font-bold text-blue-900">{salaires[m.matricule] || 120} DH</p>
+                                                    </div>
+                                                    <div className="bg-purple-50 p-1.5 rounded">
+                                                        <p className="text-[9px] text-purple-600 font-medium mb-0.5">Total</p>
+                                                        <p className="text-xs font-bold text-purple-900">{salaire.toFixed(0)} DH</p>
+                                                    </div>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        ) : (
+                            // Détail du monteur sélectionné
+                            <div className="space-y-4">
+                                {/* Bouton retour */}
+                                <button
+                                    onClick={() => setSelectedMonteurMobile(null)}
+                                    className="flex items-center gap-2 text-indigo-600 font-bold hover:text-indigo-700 transition-colors"
+                                >
+                                    <ChevronLeft className="w-5 h-5" />
+                                    Retour à la liste
+                                </button>
+
+                                {(() => {
+                                    const monteur = monteursChantier.find(m => m.matricule === selectedMonteurMobile);
+                                    if (!monteur) return null;
+
+                                    const total = Number(getMonthTotal(monteur.matricule));
+                                    const salaire = total * Number(salaires[monteur.matricule] || 120);
+                                    const avance = Number(avances[monteur.matricule] || 0);
+                                    const reste = salaire - avance;
+
+                                    return (
+                                        <>
+                                            {/* Info monteur */}
+                                            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl border-2 border-blue-200">
+                                                <h3 className="text-lg font-bold text-slate-900 mb-2">{monteur.nom_monteur}</h3>
+                                                <p className="text-sm text-slate-600 font-mono">{monteur.matricule}</p>
+
+                                                <div className="grid grid-cols-2 gap-3 mt-4">
+                                                    <div className="bg-white p-3 rounded-lg">
+                                                        <p className="text-xs text-slate-500 mb-1">Salaire/Jour</p>
+                                                        <input
+                                                            type="number"
+                                                            step="0.01"
+                                                            value={salaires[monteur.matricule] || 120}
+                                                            onChange={e => setSalaires(prev => ({ ...prev, [monteur.matricule]: parseFloat(e.target.value) || 120 }))}
+                                                            className="w-full text-base font-bold text-slate-900 border border-slate-300 rounded px-2 py-1"
+                                                        />
+                                                    </div>
+                                                    <div className="bg-emerald-50 p-3 rounded-lg">
+                                                        <p className="text-xs text-emerald-600 mb-1">Total Jours</p>
+                                                        <p className="text-xl font-bold text-emerald-700">{total.toFixed(1)}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Calendrier mensuel */}
+                                            <div className="space-y-2">
+                                                <h4 className="font-bold text-slate-700 mb-3">Pointage du mois</h4>
+                                                {weeks.map((week, weekIndex) => (
+                                                    <div key={weekIndex} className="bg-white rounded-xl p-3 border-2 border-slate-200 shadow-sm">
+                                                        <p className="text-xs font-bold text-slate-500 mb-2">Semaine {weekIndex + 1}</p>
+                                                        <div className="grid grid-cols-7 gap-1">
+                                                            {week.map(day => {
+                                                                const dateStr = format(day, 'yyyy-MM-dd');
+                                                                const value = pointages[monteur.matricule]?.[dateStr] || 0;
+                                                                const dayName = format(day, 'EEE', { locale: fr });
+                                                                const isWeekend = getDay(day) === 0;
+
+                                                                return (
+                                                                    <div key={dateStr} className="flex flex-col items-center">
+                                                                        <span className="text-[10px] text-slate-500 mb-1">{dayName}</span>
+                                                                        <button
+                                                                            onClick={() => togglePointage(monteur.matricule, dateStr)}
+                                                                            className={cn(
+                                                                                "w-10 h-10 rounded-lg font-bold text-sm transition-all flex items-center justify-center",
+                                                                                value === 0 && "bg-white border-2 border-slate-200 text-slate-400",
+                                                                                value === 1 && "bg-gradient-to-br from-emerald-500 to-green-500 text-white shadow-md",
+                                                                                value === 0.5 && "bg-gradient-to-br from-amber-400 to-orange-400 text-white shadow-md",
+                                                                                isWeekend && "opacity-50"
+                                                                            )}
+                                                                        >
+                                                                            {value === 1 && <Check size={16} strokeWidth={3} />}
+                                                                            {value === 0.5 && <span>½</span>}
+                                                                            {value === 0 && format(day, 'd')}
+                                                                        </button>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                        <div className="mt-2 pt-2 border-t border-slate-300 flex justify-between items-center">
+                                                            <span className="text-xs text-slate-600">Total semaine:</span>
+                                                            <span className="text-sm font-bold text-slate-900">{getWeekTotal(monteur.matricule, week).toFixed(1)} j</span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            {/* Résumé financier */}
+                                            <div className="bg-gradient-to-r from-slate-50 to-slate-100 p-4 rounded-xl border-2 border-slate-300 space-y-3">
+                                                <h4 className="font-bold text-slate-700 mb-3">Résumé Financier</h4>
+
+                                                <div className="space-y-2">
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-sm text-slate-600">Avance:</span>
+                                                        <input
+                                                            type="number"
+                                                            step="0.01"
+                                                            value={avances[monteur.matricule] || 0}
+                                                            onChange={e => setAvances(prev => ({ ...prev, [monteur.matricule]: parseFloat(e.target.value) || 0 }))}
+                                                            className="w-24 text-right text-sm font-bold text-amber-900 border border-amber-300 rounded px-2 py-1"
+                                                        />
+                                                    </div>
+
+                                                    <div className="flex justify-between items-center pt-2 border-t border-slate-300">
+                                                        <span className="text-sm font-bold text-slate-700">Salaire Brut:</span>
+                                                        <span className="text-base font-bold text-blue-700">{salaire.toFixed(2)} DH</span>
+                                                    </div>
+
+                                                    <div className="flex justify-between items-center pt-2 border-t-2 border-emerald-400 bg-emerald-50 -mx-4 px-4 py-2 rounded-b-xl">
+                                                        <span className="text-base font-bold text-emerald-900">Net à Payer:</span>
+                                                        <span className="text-xl font-bold text-emerald-700">{reste.toFixed(2)} DH</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </>
+                                    );
+                                })()}
+                            </div>
+                        )}
+                    </div>
+                ) : !isMobileView && monteursChantier.length > 0 ? (
+                    <div className="flex-1 bg-white rounded-2xl shadow-2xl border-2 border-slate-200">
+                        <div className="w-full">
 
                             {/* En-tête Excel-style */}
                             <div className="sticky top-0 z-20 bg-white border-b-4 border-slate-400">
 
                                 {/* Ligne 1: Noms des monteurs */}
                                 <div className="flex border-b-2 border-slate-300">
-                                    <div className="sticky left-0 z-30 w-48 bg-blue-100 border-r-2 border-slate-400 p-3 flex items-center justify-center">
-                                        <span className="text-sm font-bold text-slate-700">%</span>
+                                    <div className="sticky left-0 z-30 w-32 md:w-48 bg-blue-100 border-r-2 border-slate-400 p-2 md:p-3 flex items-center justify-center flex-shrink-0">
+                                        <span className="text-xs md:text-sm font-bold text-slate-700">%</span>
                                     </div>
-                                    <div className="w-32 bg-slate-100 border-r-2 border-slate-300 p-3 flex items-center justify-center">
-                                        <span className="text-xs font-bold text-slate-600">Salaire</span>
+                                    <div className="w-24 md:w-32 bg-slate-100 border-r-2 border-slate-300 p-2 md:p-3 flex items-center justify-center flex-shrink-0">
+                                        <span className="text-[10px] md:text-xs font-bold text-slate-600">Salaire</span>
                                     </div>
-                                    {monteursChantier.map((m: any) => (
-                                        <div key={`name-${m.matricule}`} className="w-28 bg-blue-200 border-r border-slate-300 p-2">
-                                            <div className="text-center space-y-1">
-                                                <p className="text-xs font-bold text-slate-900 uppercase leading-tight">{m.nom_monteur}</p>
-                                                <p className="text-[10px] text-slate-600 font-mono">{m.matricule || m.cin}</p>
+                                    <div className="flex-1 flex">
+                                        {monteursChantier.map((m: any) => (
+                                            <div key={`name-${m.matricule}`} className="min-w-[80px] flex-1 bg-blue-200 border-r border-slate-300 p-2">
+                                                <div className="text-center space-y-1">
+                                                    <p className="text-[10px] md:text-xs font-bold text-slate-900 uppercase leading-tight truncate">{m.nom_monteur}</p>
+                                                    <p className="text-[8px] md:text-[10px] text-slate-600 font-mono truncate">{m.matricule || m.cin}</p>
+                                                </div>
                                             </div>
-                                        </div>
-                                    ))}
+                                        ))}
+                                    </div>
                                 </div>
 
                                 {/* Ligne 2: Salaires */}
                                 <div className="flex border-b-2 border-slate-300">
-                                    <div className="sticky left-0 z-30 w-48 bg-white border-r-2 border-slate-400 p-3">
-                                        <div className="text-xs font-bold text-slate-700">CHANTIERS</div>
+                                    <div className="sticky left-0 z-30 w-32 md:w-48 bg-white border-r-2 border-slate-400 p-2 md:p-3 flex-shrink-0">
+                                        <div className="text-[10px] md:text-xs font-bold text-slate-700">CHANTIERS</div>
                                     </div>
-                                    <div className="w-32 bg-slate-100 border-r-2 border-slate-300 p-3 flex items-center justify-center">
-                                        <span className="text-xs font-bold text-slate-600">MATRICULE</span>
+                                    <div className="w-24 md:w-32 bg-slate-100 border-r-2 border-slate-300 p-2 md:p-3 flex items-center justify-center flex-shrink-0">
+                                        <span className="text-[10px] md:text-xs font-bold text-slate-600">MATRICULE</span>
                                     </div>
-                                    {monteursChantier.map((m: any) => (
-                                        <div key={`salary-${m.matricule}`} className="w-28 bg-white border-r border-slate-300 p-1">
-                                            <input
-                                                type="number"
-                                                step="0.01"
-                                                value={salaires[m.matricule] || 120}
-                                                onChange={e => setSalaires(prev => ({ ...prev, [m.matricule]: parseFloat(e.target.value) || 120 }))}
-                                                className="w-full text-center text-sm font-bold text-slate-900 bg-transparent border border-slate-300 rounded px-1 py-1"
-                                            />
-                                        </div>
-                                    ))}
+                                    <div className="flex-1 flex">
+                                        {monteursChantier.map((m: any) => (
+                                            <div key={`salary-${m.matricule}`} className="min-w-[80px] flex-1 bg-white border-r border-slate-300 p-1">
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    value={salaires[m.matricule] || 120}
+                                                    onChange={e => setSalaires(prev => ({ ...prev, [m.matricule]: parseFloat(e.target.value) || 120 }))}
+                                                    className="w-full text-center text-xs md:text-sm font-bold text-slate-900 bg-transparent border border-slate-300 rounded px-1 py-1"
+                                                />
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
 
                                 {/* Ligne 3: Chantiers */}
                                 <div className="flex border-b-2 border-slate-400">
-                                    <div className="sticky left-0 z-30 w-48 bg-white border-r-2 border-slate-400 p-2">
-                                        <div className="text-[10px] text-slate-500">Début :</div>
-                                        <div className="text-[10px] text-slate-500">Fin :</div>
+                                    <div className="sticky left-0 z-30 w-32 md:w-48 bg-white border-r-2 border-slate-400 p-2 flex-shrink-0">
+                                        <div className="text-[8px] md:text-[10px] text-slate-500">Début :</div>
+                                        <div className="text-[8px] md:text-[10px] text-slate-500">Fin :</div>
                                     </div>
-                                    <div className="w-32 bg-slate-100 border-r-2 border-slate-300 p-3 flex items-center justify-center">
-                                        <span className="text-xs font-bold text-slate-600">EVALUATION</span>
+                                    <div className="w-24 md:w-32 bg-slate-100 border-r-2 border-slate-300 p-2 md:p-3 flex items-center justify-center flex-shrink-0">
+                                        <span className="text-[10px] md:text-xs font-bold text-slate-600">EVALUATION</span>
                                     </div>
-                                    {monteursChantier.map((m: any) => {
-                                        const chantiersList = getMonteursChantiers(m.matricule);
-                                        return (
-                                            <div key={`chantiers-${m.matricule}`} className="w-28 bg-slate-50 border-r border-slate-300 p-1">
-                                                <div className="text-[9px] text-slate-700 text-center space-y-0.5">
-                                                    {chantiersList.slice(0, 3).map((ref, idx) => (
-                                                        <div key={idx} className="font-medium">{ref}</div>
-                                                    ))}
+                                    <div className="flex-1 flex">
+                                        {monteursChantier.map((m: any) => {
+                                            const chantiersList = getMonteursChantiers(m.matricule);
+                                            return (
+                                                <div key={`chantiers-${m.matricule}`} className="min-w-[80px] flex-1 bg-slate-50 border-r border-slate-300 p-1">
+                                                    <div className="text-[8px] md:text-[9px] text-slate-700 text-center space-y-0.5">
+                                                        {chantiersList.slice(0, 3).map((ref, idx) => (
+                                                            <div key={idx} className="font-medium truncate">{ref}</div>
+                                                        ))}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        );
-                                    })}
+                                            );
+                                        })}
+                                    </div>
                                 </div>
                             </div>
 
@@ -942,7 +1145,7 @@ const PointageMensuel = () => {
                             </div>
                         </div>
                     </div>
-                )
+                ) : null
             }
         </div >
     );

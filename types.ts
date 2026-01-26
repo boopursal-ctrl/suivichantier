@@ -1,8 +1,11 @@
 
+
 export type StatutChantier = 'actif' | 'terminé' | 'archivé' | 'en_instance';
 export type TypeCout = 'transport_commun' | 'hebergement' | 'restauration' | 'transport_local' | 'outillage_affecte' | 'sous_traitant' | 'autre' | 'main_doeuvre_extra' | 'prime' | 'heures_supp';
 export type TypeMouvement = 'ENTREE' | 'SORTIE';
 export type TypeContrat = 'CDI' | 'CDD' | 'ANAPEC' | 'FREELANCE';
+export type StatutContrat = 'actif' | 'clos' | 'suspendu';
+
 
 // ... (skipping unchanged parts)
 
@@ -19,7 +22,7 @@ export interface MouvementStock {
 
 export type UserRole = 'ADMIN' | 'MANAGER' | 'USER' | 'COMPTABILITE' | 'TECHNIQUE' | 'ADMINISTRATIF';
 export type RoleMonteur = 'OUVRIER' | 'CHEF_CHANTIER';
-export type AppModule = 'dashboard' | 'chantiers' | 'stock' | 'clients' | 'monteurs' | 'rapports' | 'admin' | 'matrice' | 'planning' | 'chef_chantier' | 'pointage_mensuel';
+export type AppModule = 'dashboard' | 'chantiers' | 'stock' | 'clients' | 'monteurs' | 'rapports' | 'admin' | 'matrice' | 'planning' | 'chef_chantier' | 'pointage_mensuel' | 'contrats';
 
 export type StadeAvancement = 'démarrage' | 'en_cours' | 'avancé' | 'presque_terminé' | 'finalisé';
 
@@ -72,6 +75,43 @@ export interface Monteur {
   created_at?: string;
   updated_at?: string;
 }
+
+// Interface pour les contrats des monteurs par chantier
+export interface Contrat {
+  id_contrat: string; // UUID
+  matricule: number; // Référence au monteur
+  nom_monteur: string; // Nom du monteur (dénormalisé pour faciliter les requêtes)
+  id_chantier: string; // Référence au chantier
+  ref_chantier: string; // Référence du chantier (dénormalisé)
+  nom_client: string; // Nom du client (dénormalisé)
+
+  // Informations personnelles (reprises du monteur)
+  cin?: string;
+  date_naissance?: string;
+  adresse?: string;
+  ville_residence?: string;
+  nationalite?: string;
+
+  // Informations du contrat
+  type_contrat: TypeContrat;
+  role_monteur: RoleMonteur; // OUVRIER ou CHEF_CHANTIER
+  salaire_journalier: number;
+
+  // Dates
+  date_debut: string; // Date de début du contrat (= date d'affectation au chantier)
+  date_fin?: string; // Date de fin du contrat (= date de clôture ou réaffectation)
+
+  // Statut
+  statut: StatutContrat; // 'actif', 'clos', 'suspendu'
+
+  // Métadonnées
+  created_at?: string;
+  updated_at?: string;
+  created_by?: string; // Email de l'utilisateur qui a créé le contrat
+  closed_by?: string; // Email de l'utilisateur qui a clôturé le contrat
+  motif_cloture?: string; // Raison de la clôture (réaffectation, fin de chantier, etc.)
+}
+
 
 export interface LigneCout {
   id_cout: string;

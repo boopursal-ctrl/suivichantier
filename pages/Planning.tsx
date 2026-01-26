@@ -45,7 +45,8 @@ import {
     TrendingUp,
     Users,
     Wallet,
-    User
+    User,
+    X
 } from 'lucide-react';
 import { Chantier } from '../types';
 import { cn } from '../utils';
@@ -66,7 +67,7 @@ const SidebarDroppable = ({ children }: { children: React.ReactNode }) => {
 
     return (
         <div ref={setNodeRef} className={cn(
-            "flex-1 overflow-y-auto p-4 space-y-3 transition-all duration-200",
+            "flex-1 p-4 space-y-3 transition-all duration-200",
             isOver ? "bg-slate-800/70 ring-2 ring-inset ring-amber-400/50" : ""
         )}>
             {children}
@@ -347,6 +348,7 @@ const Planning = () => {
     const { chantiers, monteurs, affectations, updateChantier, lignesCouts } = useData();
     const [currentDate, setCurrentDate] = useState(new Date());
     const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
+    const [showSidebar, setShowSidebar] = useState(false);
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -491,54 +493,91 @@ const Planning = () => {
             <div className="flex flex-col h-[calc(100vh-theme(spacing.24))] gap-6 max-w-[1920px] mx-auto">
 
                 {/* Header */}
-                <div className="flex justify-between items-center pb-6 border-b-2 border-slate-200">
-                    <div>
-                        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Planification Opérationnelle</h1>
-                        <p className="text-slate-600 text-sm mt-1">Organisez vos chantiers et visualisez les durées</p>
+                <div className="flex flex-col gap-4 pb-6 border-b-2 border-slate-200">
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">Planification Opérationnelle</h1>
+                            <p className="text-slate-600 text-sm mt-1 hidden sm:block">Organisez vos chantiers et visualisez les durées</p>
+                        </div>
+
+                        {/* Bouton toggle sidebar mobile */}
+                        <button
+                            onClick={() => setShowSidebar(!showSidebar)}
+                            className="lg:hidden px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-xl font-bold shadow-lg flex items-center gap-2"
+                        >
+                            <Users className="w-4 h-4" />
+                            {stats.enAttente}
+                        </button>
                     </div>
 
-                    <div className="flex items-center gap-4">
-                        <div className="hidden md:flex items-center gap-3">
-                            <div className="px-4 py-2 bg-gradient-to-r from-amber-50 to-amber-100 border-2 border-amber-300 rounded-xl flex items-center gap-2 shadow-sm">
+                    <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
+                        {/* Stats - visible sur toutes tailles */}
+                        <div className="flex items-center gap-2 overflow-x-auto">
+                            <div className="px-3 py-2 bg-gradient-to-r from-amber-50 to-amber-100 border-2 border-amber-300 rounded-xl flex items-center gap-2 shadow-sm flex-shrink-0">
                                 <div className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></div>
-                                <span className="text-sm font-bold text-amber-800">{stats.enAttente} en attente</span>
+                                <span className="text-xs sm:text-sm font-bold text-amber-800">{stats.enAttente} en attente</span>
                             </div>
-                            <div className="px-4 py-2 bg-gradient-to-r from-emerald-50 to-emerald-100 border-2 border-emerald-300 rounded-xl flex items-center gap-2 shadow-sm">
+                            <div className="px-3 py-2 bg-gradient-to-r from-emerald-50 to-emerald-100 border-2 border-emerald-300 rounded-xl flex items-center gap-2 shadow-sm flex-shrink-0">
                                 <TrendingUp className="w-4 h-4 text-emerald-700" />
-                                <span className="text-sm font-bold text-emerald-800">{stats.enCours} actifs</span>
+                                <span className="text-xs sm:text-sm font-bold text-emerald-800">{stats.enCours} actifs</span>
                             </div>
                         </div>
 
-                        <div className="flex items-center bg-white border-2 border-slate-300 rounded-xl p-1 shadow-md">
-                            <button onClick={() => setCurrentDate(d => subMonths(d, 1))} className="p-2.5 hover:bg-slate-100 rounded-lg transition-colors text-slate-700 hover:text-slate-900">
-                                <ChevronLeft className="w-5 h-5" />
-                            </button>
-                            <div className="px-6 font-bold text-slate-800 min-w-[160px] text-center capitalize text-lg">
-                                {format(currentDate, 'MMMM yyyy', { locale: fr })}
+                        {/* Navigation mois */}
+                        <div className="flex items-center gap-2">
+                            <div className="flex items-center bg-white border-2 border-slate-300 rounded-xl p-1 shadow-md">
+                                <button onClick={() => setCurrentDate(d => subMonths(d, 1))} className="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-700 hover:text-slate-900">
+                                    <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+                                </button>
+                                <div className="px-3 sm:px-6 font-bold text-slate-800 min-w-[120px] sm:min-w-[160px] text-center capitalize text-sm sm:text-lg">
+                                    {format(currentDate, 'MMMM yyyy', { locale: fr })}
+                                </div>
+                                <button onClick={() => setCurrentDate(d => addMonths(d, 1))} className="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-700 hover:text-slate-900">
+                                    <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
+                                </button>
                             </div>
-                            <button onClick={() => setCurrentDate(d => addMonths(d, 1))} className="p-2.5 hover:bg-slate-100 rounded-lg transition-colors text-slate-700 hover:text-slate-900">
-                                <ChevronRight className="w-5 h-5" />
+                            <button onClick={() => setCurrentDate(new Date())} className="hidden sm:block px-5 py-2.5 bg-gradient-to-r from-slate-800 to-slate-900 text-white rounded-xl text-sm font-bold hover:from-slate-700 hover:to-slate-800 shadow-lg transition-all hover:shadow-xl">
+                                Aujourd'hui
                             </button>
                         </div>
-                        <button onClick={() => setCurrentDate(new Date())} className="px-5 py-2.5 bg-gradient-to-r from-slate-800 to-slate-900 text-white rounded-xl text-sm font-bold hover:from-slate-700 hover:to-slate-800 shadow-lg transition-all hover:shadow-xl">
-                            Aujourd'hui
-                        </button>
                     </div>
                 </div>
 
-                <div className="flex flex-1 gap-6 overflow-hidden">
+                <div className="flex flex-1 gap-6 overflow-hidden relative">
+
+                    {/* Backdrop mobile */}
+                    {showSidebar && (
+                        <div
+                            className="lg:hidden fixed inset-0 bg-black/50 z-40"
+                            onClick={() => setShowSidebar(false)}
+                        />
+                    )}
 
                     {/* Sidebar */}
-                    <div className="w-96 flex flex-col bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl shadow-2xl overflow-hidden text-slate-50 border-2 border-slate-700">
+                    <div className={cn(
+                        "w-80 sm:w-96 flex flex-col bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl shadow-2xl text-slate-50 border-2 border-slate-700 overflow-y-auto",
+                        "lg:relative lg:translate-x-0",
+                        "fixed top-0 left-0 bottom-0 z-50 transition-transform duration-300",
+                        showSidebar ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+                    )}>
                         <div className="p-6 border-b-2 border-slate-700 bg-slate-900/50 backdrop-blur-sm">
                             <div className="flex justify-between items-center mb-2">
                                 <h3 className="font-bold text-lg flex items-center gap-2">
                                     <div className="w-3 h-3 rounded-full bg-amber-500 shadow-[0_0_12px_rgba(245,158,11,0.6)] animate-pulse"></div>
                                     En Instance
                                 </h3>
-                                <span className="bg-slate-800 text-slate-200 text-sm font-bold px-3 py-1.5 rounded-lg border-2 border-slate-700 shadow-inner">
-                                    {backlogChantiers.length}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                    <span className="bg-slate-800 text-slate-200 text-sm font-bold px-3 py-1.5 rounded-lg border-2 border-slate-700 shadow-inner">
+                                        {backlogChantiers.length}
+                                    </span>
+                                    {/* Bouton fermer mobile */}
+                                    <button
+                                        onClick={() => setShowSidebar(false)}
+                                        className="lg:hidden p-2 hover:bg-slate-800 rounded-lg transition-colors"
+                                    >
+                                        <X className="w-5 h-5" />
+                                    </button>
+                                </div>
                             </div>
                             <p className="text-xs text-slate-400 font-medium">Glissez vers le calendrier pour planifier</p>
                         </div>

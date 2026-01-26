@@ -8,6 +8,9 @@ import { useData } from '../contexts/DataContext';
 import { LigneCout, AffectationMonteur, Versement, TypeCout, Chantier, MonteurLocal, StadeAvancement } from '../types';
 import { formatCurrency, formatDate, countDays } from '../utils';
 import { ArrowLeft, Box, Truck, Plus, Trash2, Edit2, Wallet, Users, Banknote, Calendar, MapPin, CheckCircle2, AlertTriangle, X, FileText, Car, HardHat, Save, MessageSquare, Minus, Search, UserPlus, ArrowRight, Utensils, Home, TrendingUp } from 'lucide-react';
+import { createContratAutomatique } from '../services/contratService';
+import { useAuth } from '../contexts/AuthContext';
+
 
 interface SiteDetailProps {
   chantierId: string;
@@ -48,6 +51,7 @@ const getCityName = (code: string): string => {
 
 
 const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
+  const { user } = useAuth();
   const {
     chantiers, lignesCouts, affectations, versements, monteurs, updateChantier,
     addAffectation, removeAffectation, updateAffectation,
@@ -266,6 +270,22 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
           jours_arret: 0
         });
         console.log("API Call finished.");
+
+        // --- GESTION AUTOMATIQUE DES CONTRATS ---
+        try {
+          console.log("📝 Création automatique du contrat...");
+          const contrat = await createContratAutomatique(monteur, chantier, user?.email);
+          if (contrat) {
+            console.log("✅ Contrat créé avec succès");
+          } else {
+            console.warn("⚠️ Contrat non créé (erreur potentielle)");
+          }
+        } catch (contratErr) {
+          console.error("❌ Erreur lors de la création du contrat:", contratErr);
+          // On ne bloque pas l'affectation si le contrat échoue, mais on log l'erreur
+        }
+        // ----------------------------------------
+
         alert(`✅ ${monteur.nom_monteur} ajouté avec succès !`);
       } catch (err: any) {
         console.error("Error adding affectation:", err);
