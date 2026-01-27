@@ -78,20 +78,19 @@ const SidebarDroppable = ({ children }: { children: React.ReactNode }) => {
 // --- Components ---
 
 const DraggableChantier = ({ chantier, isOverlay }: DraggableChantierProps) => {
-    const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } = useDraggable({
         id: chantier.id_chantier,
-        data: { chantier }
+        data: { chantier },
+        disabled: isOverlay
     });
 
     return (
         <div
             ref={setNodeRef}
-            {...listeners}
-            {...attributes}
             className={cn(
-                "relative bg-gradient-to-br from-white via-slate-50 to-slate-100 group rounded-xl border-2 transition-all duration-200 cursor-grab active:cursor-grabbing overflow-hidden",
+                "relative bg-gradient-to-br from-white via-slate-50 to-slate-100 group rounded-xl border-2 transition-all duration-200 overflow-hidden",
                 isDragging ? "opacity-20 scale-95" : "opacity-100 hover:shadow-2xl hover:border-indigo-400 hover:scale-[1.02]",
-                isOverlay ? "shadow-2xl ring-4 ring-indigo-400/50 rotate-3 scale-110 z-50" : "shadow-md border-slate-300",
+                isOverlay ? "shadow-2xl ring-4 ring-indigo-400/50 rotate-3 scale-110 z-50 cursor-grabbing" : "shadow-md border-slate-300",
                 "p-4"
             )}
         >
@@ -103,7 +102,16 @@ const DraggableChantier = ({ chantier, isOverlay }: DraggableChantierProps) => {
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{chantier.ref_chantier}</span>
                         <h4 className="font-bold text-slate-900 text-base leading-tight mt-0.5">{chantier.nom_client}</h4>
                     </div>
-                    <GripVertical className="w-5 h-5 text-slate-300 group-hover:text-indigo-500 transition-colors flex-shrink-0" />
+
+                    <div
+                        ref={setActivatorNodeRef}
+                        {...listeners}
+                        {...attributes}
+                        className="p-2 -m-2 cursor-grab active:cursor-grabbing touch-none z-10"
+                        title="Maintenir pour déplacer"
+                    >
+                        <GripVertical className="w-5 h-5 text-slate-300 group-hover:text-indigo-500 transition-colors flex-shrink-0" />
+                    </div>
                 </div>
 
                 <div className="flex items-center gap-3">
@@ -386,6 +394,7 @@ const Planning = () => {
 
     const handleDragStart = (event: DragStartEvent) => {
         setActiveId(event.active.id);
+        setShowSidebar(false);
     };
 
     const handleDragEnd = async (event: DragEndEvent) => {

@@ -105,10 +105,10 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
         </div>
         <button
           onClick={() => setIsModalOpen(true)}
-          className="flex items-center px-6 py-3 bg-red-700 text-white rounded-xl hover:bg-red-800 shadow-md font-bold text-md transition-transform hover:scale-105"
+          className="flex items-center justify-center w-12 h-12 md:w-auto md:h-auto md:px-6 md:py-3 bg-red-700 text-white rounded-xl hover:bg-red-800 shadow-md font-bold text-md transition-transform hover:scale-105"
         >
-          <Plus className="w-5 h-5 mr-2" />
-          Créer un Chantier
+          <Plus className="w-6 h-6 md:w-5 md:h-5 md:mr-2" />
+          <span className="hidden md:inline">Créer un Chantier</span>
         </button>
       </div>
 

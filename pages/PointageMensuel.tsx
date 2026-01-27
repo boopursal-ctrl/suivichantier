@@ -418,7 +418,7 @@ const PointageMensuel = () => {
     };
 
     return (
-        <div className="flex flex-col h-[calc(100vh-theme(spacing.24))] gap-4 md:gap-6 max-w-[1920px] mx-auto">
+        <div className="flex flex-col min-h-[calc(100vh-theme(spacing.24))] gap-4 md:gap-6 max-w-[1920px] mx-auto pb-10">
 
             {/* Header */}
             <div className="flex flex-col gap-4 pb-4 md:pb-6 border-b-2 border-slate-200">
@@ -612,7 +612,7 @@ const PointageMensuel = () => {
                     </div>
                 ) : isMobileView && monteursChantier.length > 0 ? (
                     // Vue Mobile Optimisée
-                    <div className="flex-1 overflow-auto bg-gradient-to-br from-slate-50 to-slate-100 rounded-2xl shadow-lg border-2 border-slate-200 p-2">
+                    <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-2xl shadow-lg border-2 border-slate-200 p-2">
                         {!selectedMonteurMobile ? (
                             // Liste des monteurs en cartes compactes
                             <div className="space-y-2">
@@ -782,43 +782,41 @@ const PointageMensuel = () => {
                         )}
                     </div>
                 ) : !isMobileView && monteursChantier.length > 0 ? (
-                    <div className="flex-1 bg-white rounded-2xl shadow-2xl border-2 border-slate-200">
-                        <div className="w-full">
+                    <div className="flex-1 bg-white rounded-2xl shadow-2xl border-2 border-slate-200 flex flex-col">
+                        <div className="w-full overflow-x-auto">
+                            <div className="min-w-max"> {/* Container to force width */}
 
-                            {/* En-tête Excel-style */}
-                            <div className="sticky top-0 z-20 bg-white border-b-4 border-slate-400">
+                                {/* En-tête Excel-style */}
+                                <div className="sticky top-0 z-20 bg-white shadow-md border-b-4 border-slate-400">
 
-                                {/* Ligne 1: Noms des monteurs */}
-                                <div className="flex border-b-2 border-slate-300">
-                                    <div className="sticky left-0 z-30 w-32 md:w-48 bg-blue-100 border-r-2 border-slate-400 p-2 md:p-3 flex items-center justify-center flex-shrink-0">
-                                        <span className="text-xs md:text-sm font-bold text-slate-700">%</span>
-                                    </div>
-                                    <div className="w-24 md:w-32 bg-slate-100 border-r-2 border-slate-300 p-2 md:p-3 flex items-center justify-center flex-shrink-0">
-                                        <span className="text-[10px] md:text-xs font-bold text-slate-600">Salaire</span>
-                                    </div>
-                                    <div className="flex-1 flex">
+                                    {/* Ligne 1: Noms des monteurs */}
+                                    <div className="flex border-b-2 border-slate-300">
+                                        <div className="sticky left-0 z-30 w-56 bg-blue-100 border-r-2 border-slate-400 p-2 md:p-3 flex items-center justify-center flex-shrink-0">
+                                            <span className="text-xs md:text-sm font-bold text-slate-700">%</span>
+                                        </div>
+                                        <div className="w-32 bg-slate-100 border-r-2 border-slate-300 p-2 md:p-3 flex items-center justify-center flex-shrink-0">
+                                            <span className="text-[10px] md:text-xs font-bold text-slate-600">Salaire</span>
+                                        </div>
                                         {monteursChantier.map((m: any) => (
-                                            <div key={`name-${m.matricule}`} className="min-w-[80px] flex-1 bg-blue-200 border-r border-slate-300 p-2">
+                                            <div key={`name-${m.matricule}`} className="w-40 bg-blue-200 border-r border-slate-300 p-2 flex-shrink-0">
                                                 <div className="text-center space-y-1">
-                                                    <p className="text-[10px] md:text-xs font-bold text-slate-900 uppercase leading-tight truncate">{m.nom_monteur}</p>
-                                                    <p className="text-[8px] md:text-[10px] text-slate-600 font-mono truncate">{m.matricule || m.cin}</p>
+                                                    <p className="text-xs font-bold text-slate-900 uppercase leading-tight truncate px-1" title={m.nom_monteur}>{m.nom_monteur}</p>
+                                                    <p className="text-[10px] text-slate-600 font-mono truncate">{m.matricule || m.cin}</p>
                                                 </div>
                                             </div>
                                         ))}
                                     </div>
-                                </div>
 
-                                {/* Ligne 2: Salaires */}
-                                <div className="flex border-b-2 border-slate-300">
-                                    <div className="sticky left-0 z-30 w-32 md:w-48 bg-white border-r-2 border-slate-400 p-2 md:p-3 flex-shrink-0">
-                                        <div className="text-[10px] md:text-xs font-bold text-slate-700">CHANTIERS</div>
-                                    </div>
-                                    <div className="w-24 md:w-32 bg-slate-100 border-r-2 border-slate-300 p-2 md:p-3 flex items-center justify-center flex-shrink-0">
-                                        <span className="text-[10px] md:text-xs font-bold text-slate-600">MATRICULE</span>
-                                    </div>
-                                    <div className="flex-1 flex">
+                                    {/* Ligne 2: Salaires */}
+                                    <div className="flex border-b-2 border-slate-300">
+                                        <div className="sticky left-0 z-30 w-56 bg-white border-r-2 border-slate-400 p-2 md:p-3 flex-shrink-0">
+                                            <div className="text-[10px] md:text-xs font-bold text-slate-700">CHANTIERS</div>
+                                        </div>
+                                        <div className="w-32 bg-slate-100 border-r-2 border-slate-300 p-2 md:p-3 flex items-center justify-center flex-shrink-0">
+                                            <span className="text-[10px] md:text-xs font-bold text-slate-600">MATRICULE</span>
+                                        </div>
                                         {monteursChantier.map((m: any) => (
-                                            <div key={`salary-${m.matricule}`} className="min-w-[80px] flex-1 bg-white border-r border-slate-300 p-1">
+                                            <div key={`salary-${m.matricule}`} className="w-40 bg-white border-r border-slate-300 p-1 flex-shrink-0">
                                                 <input
                                                     type="number"
                                                     step="0.01"
@@ -829,22 +827,20 @@ const PointageMensuel = () => {
                                             </div>
                                         ))}
                                     </div>
-                                </div>
 
-                                {/* Ligne 3: Chantiers */}
-                                <div className="flex border-b-2 border-slate-400">
-                                    <div className="sticky left-0 z-30 w-32 md:w-48 bg-white border-r-2 border-slate-400 p-2 flex-shrink-0">
-                                        <div className="text-[8px] md:text-[10px] text-slate-500">Début :</div>
-                                        <div className="text-[8px] md:text-[10px] text-slate-500">Fin :</div>
-                                    </div>
-                                    <div className="w-24 md:w-32 bg-slate-100 border-r-2 border-slate-300 p-2 md:p-3 flex items-center justify-center flex-shrink-0">
-                                        <span className="text-[10px] md:text-xs font-bold text-slate-600">EVALUATION</span>
-                                    </div>
-                                    <div className="flex-1 flex">
+                                    {/* Ligne 3: Chantiers */}
+                                    <div className="flex border-b-2 border-slate-400">
+                                        <div className="sticky left-0 z-30 w-56 bg-white border-r-2 border-slate-400 p-2 flex-shrink-0">
+                                            <div className="text-[8px] md:text-[10px] text-slate-500">Début :</div>
+                                            <div className="text-[8px] md:text-[10px] text-slate-500">Fin :</div>
+                                        </div>
+                                        <div className="w-32 bg-slate-100 border-r-2 border-slate-300 p-2 md:p-3 flex items-center justify-center flex-shrink-0">
+                                            <span className="text-[10px] md:text-xs font-bold text-slate-600">EVALUATION</span>
+                                        </div>
                                         {monteursChantier.map((m: any) => {
                                             const chantiersList = getMonteursChantiers(m.matricule);
                                             return (
-                                                <div key={`chantiers-${m.matricule}`} className="min-w-[80px] flex-1 bg-slate-50 border-r border-slate-300 p-1">
+                                                <div key={`chantiers-${m.matricule}`} className="w-40 bg-slate-50 border-r border-slate-300 p-1 flex-shrink-0">
                                                     <div className="text-[8px] md:text-[9px] text-slate-700 text-center space-y-0.5">
                                                         {chantiersList.slice(0, 3).map((ref, idx) => (
                                                             <div key={idx} className="font-medium truncate">{ref}</div>
@@ -855,292 +851,293 @@ const PointageMensuel = () => {
                                         })}
                                     </div>
                                 </div>
-                            </div>
 
-                            {/* Corps du tableau - Par semaine */}
-                            {weeks.map((week, weekIndex) => (
-                                <div key={weekIndex}>
+                                {/* Corps du tableau - Par semaine */}
+                                {weeks.map((week, weekIndex) => (
+                                    <div key={weekIndex}>
 
-                                    {/* Jours de la semaine */}
-                                    {week.map((day, dayIndex) => {
-                                        const dateStr = format(day, 'yyyy-MM-dd');
-                                        const dayName = format(day, 'EEEE', { locale: fr });
-                                        const isWeekend = getDay(day) === 0 || getDay(day) === 6;
-                                        const isFirstOfWeek = dayIndex === 0;
+                                        {/* Jours de la semaine */}
+                                        {week.map((day, dayIndex) => {
+                                            const dateStr = format(day, 'yyyy-MM-dd');
+                                            const dayName = format(day, 'EEEE', { locale: fr });
+                                            const isWeekend = getDay(day) === 0 || getDay(day) === 6;
+                                            const isFirstOfWeek = dayIndex === 0;
 
-                                        return (
-                                            <div key={dateStr} className={cn("flex", isWeekend && "bg-slate-50")}>
-                                                {/* Date */}
-                                                <div className="sticky left-0 z-10 w-48 bg-white border-r-2 border-slate-400 border-b border-slate-200 p-2">
-                                                    {isFirstOfWeek && (
-                                                        <div className="text-xs font-bold text-slate-900 mb-1">{format(week[0], 'dd/MM/yyyy')}</div>
-                                                    )}
-                                                    <div className="text-sm text-slate-700 capitalize">{dayName}</div>
+                                            return (
+                                                <div key={dateStr} className={cn("flex", isWeekend && "bg-slate-50")}>
+                                                    {/* Date */}
+                                                    <div className="sticky left-0 z-10 w-56 bg-white border-r-2 border-slate-400 border-b border-slate-200 p-2 flex-shrink-0">
+                                                        {isFirstOfWeek && (
+                                                            <div className="text-xs font-bold text-slate-900 mb-1">{format(week[0], 'dd/MM/yyyy')}</div>
+                                                        )}
+                                                        <div className="text-sm text-slate-700 capitalize">{dayName}</div>
+                                                    </div>
+
+                                                    {/* Colonne vide */}
+                                                    <div className="w-32 bg-slate-100 border-r-2 border-slate-300 border-b border-slate-200 flex-shrink-0"></div>
+
+                                                    {/* Pointages */}
+                                                    {monteursChantier.map((m: any) => {
+                                                        const value = pointages[m.matricule]?.[dateStr] || 0;
+
+                                                        return (
+                                                            <div key={`${m.matricule}-${dateStr}`} className="w-40 border-r border-b border-slate-200 flex-shrink-0">
+                                                                <button
+                                                                    onClick={() => togglePointage(m.matricule, dateStr)}
+                                                                    className={cn(
+                                                                        "w-full h-10 flex items-center justify-center font-bold transition-all",
+                                                                        value === 0 && "hover:bg-slate-100",
+                                                                        value === 1 && "bg-gradient-to-br from-emerald-50 to-green-50 text-emerald-600 hover:from-emerald-100",
+                                                                        value === 0.5 && "bg-amber-50 text-amber-600 hover:bg-amber-100"
+                                                                    )}
+                                                                >
+                                                                    {value === 1 && <Check size={18} strokeWidth={3} />}
+                                                                    {value === 0.5 && <span className="text-sm">½</span>}
+                                                                </button>
+                                                            </div>
+                                                        );
+                                                    })}
                                                 </div>
+                                            );
+                                        })}
 
-                                                {/* Colonne vide */}
-                                                <div className="w-32 bg-slate-100 border-r-2 border-slate-300 border-b border-slate-200"></div>
+                                        {/* Total semaine */}
+                                        <div className="flex bg-slate-100 border-b-2 border-slate-400">
+                                            <div className="sticky left-0 z-10 w-56 bg-slate-200 border-r-2 border-slate-400 p-2 flex-shrink-0">
+                                                <span className="text-sm font-bold text-slate-900">∑ Semaine {weekIndex + 1}</span>
+                                            </div>
+                                            <div className="w-32 bg-slate-200 border-r-2 border-slate-300 flex-shrink-0"></div>
+                                            {monteursChantier.map((m: any) => (
+                                                <div key={`week-total-${m.matricule}-${weekIndex}`} className="w-40 bg-slate-200 border-r border-slate-300 p-2 text-center flex-shrink-0">
+                                                    <span className="text-sm font-bold text-slate-900">
+                                                        {getWeekTotal(m.matricule, week).toFixed(2)}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
 
-                                                {/* Pointages */}
-                                                {monteursChantier.map((m: any) => {
-                                                    const value = pointages[m.matricule]?.[dateStr] || 0;
-
-                                                    return (
-                                                        <button
-                                                            key={`${m.matricule}-${dateStr}`}
-                                                            onClick={() => togglePointage(m.matricule, dateStr)}
-                                                            className={cn(
-                                                                "w-28 border-r border-b border-slate-200 p-2 text-center transition-all h-10 flex items-center justify-center font-bold",
-                                                                value === 0 && "bg-white hover:bg-slate-50",
-                                                                value === 1 && "bg-gradient-to-br from-emerald-50 to-green-50 text-emerald-600 border-emerald-200 hover:from-emerald-100",
-                                                                value === 0.5 && "bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100"
-                                                            )}
-                                                        >
-                                                            {value === 1 && <Check size={18} strokeWidth={3} />}
-                                                            {value === 0.5 && <span className="text-sm">½</span>}
-                                                        </button>
-                                                    );
-                                                })}
+                                {/* Total mois */}
+                                <div className="flex bg-emerald-100 border-t-4 border-emerald-600">
+                                    <div className="sticky left-0 z-10 w-56 bg-emerald-200 border-r-2 border-emerald-600 p-3 flex-shrink-0">
+                                        <span className="text-base font-bold text-emerald-900">∑ TOTAL MOIS</span>
+                                    </div>
+                                    <div className="w-32 bg-emerald-200 border-r-2 border-emerald-600 flex-shrink-0"></div>
+                                    {monteursChantier.map((m: any) => {
+                                        const total = getMonthTotal(m.matricule);
+                                        const salaire = total * (salaires[m.matricule] || 120);
+                                        return (
+                                            <div key={`month-total-${m.matricule}`} className="w-40 bg-emerald-100 border-r border-emerald-400 p-2 text-center flex-shrink-0">
+                                                <div className="text-lg font-bold text-emerald-900">{total.toFixed(2)}</div>
+                                                <div className="text-xs text-emerald-700">{salaire.toFixed(0)} DH</div>
                                             </div>
                                         );
                                     })}
+                                </div>
 
-                                    {/* Total semaine */}
-                                    <div className="flex bg-slate-100 border-b-2 border-slate-400">
-                                        <div className="sticky left-0 z-10 w-48 bg-slate-200 border-r-2 border-slate-400 p-2">
-                                            <span className="text-sm font-bold text-slate-900">∑</span>
+                                {/* Section Frais et Avances */}
+                                <div className="border-t-4 border-slate-400">
+
+                                    {/* Avances */}
+                                    <div className="flex bg-amber-50 border-b border-slate-300">
+                                        <div className="sticky left-0 z-10 w-56 bg-amber-100 border-r-2 border-slate-400 p-3 flex-shrink-0">
+                                            <span className="text-sm font-bold text-amber-900">Avance</span>
                                         </div>
-                                        <div className="w-32 bg-slate-200 border-r-2 border-slate-300"></div>
+                                        <div className="w-32 bg-amber-100 border-r-2 border-slate-300 flex-shrink-0"></div>
                                         {monteursChantier.map((m: any) => (
-                                            <div key={`week-total-${m.matricule}-${weekIndex}`} className="w-28 bg-slate-200 border-r border-slate-300 p-2 text-center">
-                                                <span className="text-sm font-bold text-slate-900">
-                                                    {getWeekTotal(m.matricule, week).toFixed(2)}
-                                                </span>
+                                            <div key={`avance-${m.matricule}`} className="w-40 bg-white border-r border-slate-300 p-1 flex-shrink-0">
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    value={avances[m.matricule] || 0}
+                                                    onChange={e => setAvances(prev => ({ ...prev, [m.matricule]: parseFloat(e.target.value) || 0 }))}
+                                                    className="w-full text-center text-sm font-bold text-amber-900 bg-transparent border border-amber-300 rounded px-1 py-1"
+                                                />
                                             </div>
                                         ))}
                                     </div>
-                                </div>
-                            ))}
 
-                            {/* Total mois */}
-                            <div className="flex bg-emerald-100 border-t-4 border-emerald-600">
-                                <div className="sticky left-0 z-10 w-48 bg-emerald-200 border-r-2 border-emerald-600 p-3">
-                                    <span className="text-base font-bold text-emerald-900">∑ TOTAL</span>
-                                </div>
-                                <div className="w-32 bg-emerald-200 border-r-2 border-emerald-600"></div>
-                                {monteursChantier.map((m: any) => {
-                                    const total = getMonthTotal(m.matricule);
-                                    const salaire = total * (salaires[m.matricule] || 120);
-                                    return (
-                                        <div key={`month-total-${m.matricule}`} className="w-28 bg-emerald-100 border-r border-emerald-400 p-2 text-center">
-                                            <div className="text-lg font-bold text-emerald-900">{total.toFixed(2)}</div>
-                                            <div className="text-xs text-emerald-700">{salaire.toFixed(0)} DH</div>
+                                    {/* Total Travail (Salaire brut) */}
+                                    <div className="flex bg-blue-50 border-b-2 border-blue-300">
+                                        <div className="sticky left-0 z-10 w-56 bg-blue-100 border-r-2 border-slate-400 p-3 flex-shrink-0">
+                                            <span className="text-sm font-bold text-blue-900">Total Travail</span>
                                         </div>
-                                    );
-                                })}
-                            </div>
-
-                            {/* Section Frais et Avances */}
-                            <div className="border-t-4 border-slate-400">
-
-                                {/* Avances */}
-                                <div className="flex bg-amber-50 border-b border-slate-300">
-                                    <div className="sticky left-0 z-10 w-48 bg-amber-100 border-r-2 border-slate-400 p-3">
-                                        <span className="text-sm font-bold text-amber-900">Avance</span>
+                                        <div className="w-32 bg-blue-100 border-r-2 border-slate-300 flex-shrink-0"></div>
+                                        {monteursChantier.map((m: any) => {
+                                            const total = getMonthTotal(m.matricule);
+                                            const salaire = total * (salaires[m.matricule] || 120);
+                                            return (
+                                                <div key={`total-travail-${m.matricule}`} className="w-40 bg-blue-50 border-r border-blue-300 p-2 text-center flex-shrink-0">
+                                                    <span className="text-base font-bold text-blue-900">{salaire.toFixed(2)}</span>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
-                                    <div className="w-32 bg-amber-100 border-r-2 border-slate-300"></div>
-                                    {monteursChantier.map((m: any) => (
-                                        <div key={`avance-${m.matricule}`} className="w-28 bg-white border-r border-slate-300 p-1">
-                                            <input
-                                                type="number"
-                                                step="0.01"
-                                                value={avances[m.matricule] || 0}
-                                                onChange={e => setAvances(prev => ({ ...prev, [m.matricule]: parseFloat(e.target.value) || 0 }))}
-                                                className="w-full text-center text-sm font-bold text-amber-900 bg-transparent border border-amber-300 rounded px-1 py-1"
-                                            />
+
+                                    {/* Reste à payer (après avances) */}
+                                    <div className="flex bg-green-50 border-b-2 border-green-400">
+                                        <div className="sticky left-0 z-10 w-56 bg-green-100 border-r-2 border-slate-400 p-3 flex-shrink-0">
+                                            <span className="text-sm font-bold text-green-900">Reste à payer</span>
                                         </div>
-                                    ))}
-                                </div>
-
-                                {/* Total Travail (Salaire brut) */}
-                                <div className="flex bg-blue-50 border-b-2 border-blue-300">
-                                    <div className="sticky left-0 z-10 w-48 bg-blue-100 border-r-2 border-slate-400 p-3">
-                                        <span className="text-sm font-bold text-blue-900">Total Travail</span>
+                                        <div className="w-32 bg-green-100 border-r-2 border-slate-300 flex-shrink-0"></div>
+                                        {monteursChantier.map((m: any) => {
+                                            const total = getMonthTotal(m.matricule);
+                                            const salaire = total * (salaires[m.matricule] || 120);
+                                            const reste = salaire - (avances[m.matricule] || 0);
+                                            return (
+                                                <div key={`reste-${m.matricule}`} className="w-40 bg-green-50 border-r border-green-300 p-2 text-center flex-shrink-0">
+                                                    <span className="text-base font-bold text-green-900">{reste.toFixed(2)}</span>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
-                                    <div className="w-32 bg-blue-100 border-r-2 border-slate-300"></div>
-                                    {monteursChantier.map((m: any) => {
-                                        const total = getMonthTotal(m.matricule);
-                                        const salaire = total * (salaires[m.matricule] || 120);
-                                        return (
-                                            <div key={`total-travail-${m.matricule}`} className="w-28 bg-blue-50 border-r border-blue-300 p-2 text-center">
-                                                <span className="text-base font-bold text-blue-900">{salaire.toFixed(2)}</span>
+
+                                    {/* Séparateur */}
+                                    <div className="flex bg-slate-200 border-b border-slate-400">
+                                        <div className="sticky left-0 z-10 w-56 bg-slate-200 border-r-2 border-slate-400 p-2 flex-shrink-0">
+                                            <span className="text-xs font-bold text-slate-600">ETAT</span>
+                                        </div>
+                                        <div className="w-32 bg-slate-200 border-r-2 border-slate-300 flex-shrink-0"></div>
+                                        {monteursChantier.map((m: any) => (
+                                            <div key={`etat-${m.matricule}`} className="w-40 bg-slate-100 border-r border-slate-300 p-2 text-center flex-shrink-0">
+                                                <span className="text-[10px] text-slate-600 font-medium">EN ACTIVITE</span>
                                             </div>
-                                        );
-                                    })}
-                                </div>
-
-                                {/* Reste à payer (après avances) */}
-                                <div className="flex bg-green-50 border-b-2 border-green-400">
-                                    <div className="sticky left-0 z-10 w-48 bg-green-100 border-r-2 border-slate-400 p-3">
-                                        <span className="text-sm font-bold text-green-900">Reste à payer</span>
+                                        ))}
                                     </div>
-                                    <div className="w-32 bg-green-100 border-r-2 border-slate-300"></div>
-                                    {monteursChantier.map((m: any) => {
-                                        const total = getMonthTotal(m.matricule);
-                                        const salaire = total * (salaires[m.matricule] || 120);
-                                        const reste = salaire - (avances[m.matricule] || 0);
-                                        return (
-                                            <div key={`reste-${m.matricule}`} className="w-28 bg-green-50 border-r border-green-300 p-2 text-center">
-                                                <span className="text-base font-bold text-green-900">{reste.toFixed(2)}</span>
+
+                                    {/* Frais de Transport */}
+                                    <div className="flex bg-white border-b border-slate-300">
+                                        <div className="sticky left-0 z-10 w-56 bg-slate-50 border-r-2 border-slate-400 p-3 flex-shrink-0">
+                                            <span className="text-sm font-bold text-slate-700">FRAIS DE TRANSPORT</span>
+                                        </div>
+                                        <div className="w-32 bg-slate-50 border-r-2 border-slate-300 flex-shrink-0"></div>
+                                        {monteursChantier.map((m: any) => (
+                                            <div key={`transport-${m.matricule}`} className="w-40 bg-white border-r border-slate-300 p-1 flex-shrink-0">
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    value={fraisTransport[m.matricule] || 0}
+                                                    onChange={e => setFraisTransport(prev => ({ ...prev, [m.matricule]: parseFloat(e.target.value) || 0 }))}
+                                                    className="w-full text-center text-sm font-bold text-slate-700 bg-transparent border border-slate-300 rounded px-1 py-1"
+                                                />
                                             </div>
-                                        );
-                                    })}
-                                </div>
-
-                                {/* Séparateur */}
-                                <div className="flex bg-slate-200 border-b border-slate-400">
-                                    <div className="sticky left-0 z-10 w-48 bg-slate-200 border-r-2 border-slate-400 p-2">
-                                        <span className="text-xs font-bold text-slate-600">ETAT</span>
+                                        ))}
                                     </div>
-                                    <div className="w-32 bg-slate-200 border-r-2 border-slate-300"></div>
-                                    {monteursChantier.map((m: any) => (
-                                        <div key={`etat-${m.matricule}`} className="w-28 bg-slate-100 border-r border-slate-300 p-2 text-center">
-                                            <span className="text-[10px] text-slate-600 font-medium">EN ACTIVITE</span>
+
+                                    {/* Frais de Repas */}
+                                    <div className="flex bg-slate-50 border-b border-slate-300">
+                                        <div className="sticky left-0 z-10 w-56 bg-slate-100 border-r-2 border-slate-400 p-3 flex-shrink-0">
+                                            <span className="text-sm font-bold text-slate-700">FRAIS DE REPAS</span>
                                         </div>
-                                    ))}
-                                </div>
-
-                                {/* Frais de Transport */}
-                                <div className="flex bg-white border-b border-slate-300">
-                                    <div className="sticky left-0 z-10 w-48 bg-slate-50 border-r-2 border-slate-400 p-3">
-                                        <span className="text-sm font-bold text-slate-700">FRAIS DE TRANSPORT</span>
-                                    </div>
-                                    <div className="w-32 bg-slate-50 border-r-2 border-slate-300"></div>
-                                    {monteursChantier.map((m: any) => (
-                                        <div key={`transport-${m.matricule}`} className="w-28 bg-white border-r border-slate-300 p-1">
-                                            <input
-                                                type="number"
-                                                step="0.01"
-                                                value={fraisTransport[m.matricule] || 0}
-                                                onChange={e => setFraisTransport(prev => ({ ...prev, [m.matricule]: parseFloat(e.target.value) || 0 }))}
-                                                className="w-full text-center text-sm font-bold text-slate-700 bg-transparent border border-slate-300 rounded px-1 py-1"
-                                            />
-                                        </div>
-                                    ))}
-                                </div>
-
-                                {/* Frais de Repas */}
-                                <div className="flex bg-slate-50 border-b border-slate-300">
-                                    <div className="sticky left-0 z-10 w-48 bg-slate-100 border-r-2 border-slate-400 p-3">
-                                        <span className="text-sm font-bold text-slate-700">FRAIS DE REPAS</span>
-                                    </div>
-                                    <div className="w-32 bg-slate-100 border-r-2 border-slate-300"></div>
-                                    {monteursChantier.map((m: any) => (
-                                        <div key={`repas-${m.matricule}`} className="w-28 bg-slate-50 border-r border-slate-300 p-1">
-                                            <input
-                                                type="number"
-                                                step="0.01"
-                                                value={fraisRepas[m.matricule] || 0}
-                                                onChange={e => setFraisRepas(prev => ({ ...prev, [m.matricule]: parseFloat(e.target.value) || 0 }))}
-                                                className="w-full text-center text-sm font-bold text-slate-700 bg-transparent border border-slate-300 rounded px-1 py-1"
-                                            />
-                                        </div>
-                                    ))}
-                                </div>
-
-                                {/* Frais de Loyer */}
-                                <div className="flex bg-white border-b border-slate-300">
-                                    <div className="sticky left-0 z-10 w-48 bg-slate-50 border-r-2 border-slate-400 p-3">
-                                        <span className="text-sm font-bold text-slate-700">FRAIS DE LOYER</span>
-                                    </div>
-                                    <div className="w-32 bg-slate-50 border-r-2 border-slate-300"></div>
-                                    {monteursChantier.map((m: any) => (
-                                        <div key={`loyer-${m.matricule}`} className="w-28 bg-white border-r border-slate-300 p-1">
-                                            <input
-                                                type="number"
-                                                step="0.01"
-                                                value={fraisLoyer[m.matricule] || 0}
-                                                onChange={e => setFraisLoyer(prev => ({ ...prev, [m.matricule]: parseFloat(e.target.value) || 0 }))}
-                                                className="w-full text-center text-sm font-bold text-slate-700 bg-transparent border border-slate-300 rounded px-1 py-1"
-                                            />
-                                        </div>
-                                    ))}
-                                </div>
-
-                                {/* Frais de Gasoil */}
-                                <div className="flex bg-slate-50 border-b border-slate-300">
-                                    <div className="sticky left-0 z-10 w-48 bg-slate-100 border-r-2 border-slate-400 p-3">
-                                        <span className="text-sm font-bold text-slate-700">FRAIS DE GASOIL</span>
-                                    </div>
-                                    <div className="w-32 bg-slate-100 border-r-2 border-slate-300"></div>
-                                    {monteursChantier.map((m: any) => (
-                                        <div key={`gasoil-${m.matricule}`} className="w-28 bg-slate-50 border-r border-slate-300 p-1">
-                                            <input
-                                                type="number"
-                                                step="0.01"
-                                                value={fraisGasoil[m.matricule] || 0}
-                                                onChange={e => setFraisGasoil(prev => ({ ...prev, [m.matricule]: parseFloat(e.target.value) || 0 }))}
-                                                className="w-full text-center text-sm font-bold text-slate-700 bg-transparent border border-slate-300 rounded px-1 py-1"
-                                            />
-                                        </div>
-                                    ))}
-                                </div>
-
-                                {/* Total Charges */}
-                                <div className="flex bg-red-100 border-t-2 border-red-400 border-b-2 border-red-400">
-                                    <div className="sticky left-0 z-10 w-48 bg-red-200 border-r-2 border-slate-400 p-3">
-                                        <span className="text-sm font-bold text-red-900">Total charges</span>
-                                    </div>
-                                    <div className="w-32 bg-red-200 border-r-2 border-slate-300"></div>
-                                    {monteursChantier.map((m: any) => {
-                                        const totalCharges =
-                                            (fraisTransport[m.matricule] || 0) +
-                                            (fraisRepas[m.matricule] || 0) +
-                                            (fraisLoyer[m.matricule] || 0) +
-                                            (fraisGasoil[m.matricule] || 0);
-                                        return (
-                                            <div key={`charges-${m.matricule}`} className="w-28 bg-red-100 border-r border-red-300 p-2 text-center">
-                                                <span className="text-base font-bold text-red-900">{totalCharges.toFixed(2)}</span>
+                                        <div className="w-32 bg-slate-100 border-r-2 border-slate-300 flex-shrink-0"></div>
+                                        {monteursChantier.map((m: any) => (
+                                            <div key={`repas-${m.matricule}`} className="w-40 bg-slate-50 border-r border-slate-300 p-1 flex-shrink-0">
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    value={fraisRepas[m.matricule] || 0}
+                                                    onChange={e => setFraisRepas(prev => ({ ...prev, [m.matricule]: parseFloat(e.target.value) || 0 }))}
+                                                    className="w-full text-center text-sm font-bold text-slate-700 bg-transparent border border-slate-300 rounded px-1 py-1"
+                                                />
                                             </div>
-                                        );
-                                    })}
-                                </div>
+                                        ))}
+                                    </div>
 
-                                {/* Dépenses du mois (Total général) */}
-                                <div className="flex bg-gradient-to-r from-purple-100 to-indigo-100 border-t-4 border-purple-600">
-                                    <div className="sticky left-0 z-10 w-48 bg-purple-200 border-r-2 border-purple-600 p-4">
-                                        <span className="text-base font-bold text-purple-900">Dépenses du mois</span>
-                                    </div>
-                                    <div className="w-32 bg-purple-200 border-r-2 border-purple-600 p-4 text-center">
-                                        <span className="text-lg font-bold text-purple-900">
-                                            {monteursChantier.reduce((sum: number, m: any) => {
-                                                const total = getMonthTotal(m.matricule);
-                                                const salaire = total * (salaires[m.matricule] || 120);
-                                                const totalCharges =
-                                                    (fraisTransport[m.matricule] || 0) +
-                                                    (fraisRepas[m.matricule] || 0) +
-                                                    (fraisLoyer[m.matricule] || 0) +
-                                                    (fraisGasoil[m.matricule] || 0);
-                                                return sum + salaire + totalCharges;
-                                            }, 0).toFixed(2)} DH
-                                        </span>
-                                    </div>
-                                    {monteursChantier.map((m: any) => {
-                                        const total = getMonthTotal(m.matricule);
-                                        const salaire = total * (salaires[m.matricule] || 120);
-                                        const totalCharges =
-                                            (fraisTransport[m.matricule] || 0) +
-                                            (fraisRepas[m.matricule] || 0) +
-                                            (fraisLoyer[m.matricule] || 0) +
-                                            (fraisGasoil[m.matricule] || 0);
-                                        const depensesTotales = salaire + totalCharges;
-                                        return (
-                                            <div key={`depenses-${m.matricule}`} className="w-28 bg-purple-100 border-r border-purple-300 p-3 text-center">
-                                                <div className="text-lg font-bold text-purple-900">{depensesTotales.toFixed(2)}</div>
-                                                <div className="text-xs text-purple-700">DH</div>
+                                    {/* Frais de Loyer */}
+                                    <div className="flex bg-white border-b border-slate-300">
+                                        <div className="sticky left-0 z-10 w-56 bg-slate-50 border-r-2 border-slate-400 p-3 flex-shrink-0">
+                                            <span className="text-sm font-bold text-slate-700">FRAIS DE LOYER</span>
+                                        </div>
+                                        <div className="w-32 bg-slate-50 border-r-2 border-slate-300 flex-shrink-0"></div>
+                                        {monteursChantier.map((m: any) => (
+                                            <div key={`loyer-${m.matricule}`} className="w-40 bg-white border-r border-slate-300 p-1 flex-shrink-0">
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    value={fraisLoyer[m.matricule] || 0}
+                                                    onChange={e => setFraisLoyer(prev => ({ ...prev, [m.matricule]: parseFloat(e.target.value) || 0 }))}
+                                                    className="w-full text-center text-sm font-bold text-slate-700 bg-transparent border border-slate-300 rounded px-1 py-1"
+                                                />
                                             </div>
-                                        );
-                                    })}
+                                        ))}
+                                    </div>
+
+                                    {/* Frais de Gasoil */}
+                                    <div className="flex bg-slate-50 border-b border-slate-300">
+                                        <div className="sticky left-0 z-10 w-56 bg-slate-100 border-r-2 border-slate-400 p-3 flex-shrink-0">
+                                            <span className="text-sm font-bold text-slate-700">FRAIS DE GASOIL</span>
+                                        </div>
+                                        <div className="w-32 bg-slate-100 border-r-2 border-slate-300 flex-shrink-0"></div>
+                                        {monteursChantier.map((m: any) => (
+                                            <div key={`gasoil-${m.matricule}`} className="w-40 bg-slate-50 border-r border-slate-300 p-1 flex-shrink-0">
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    value={fraisGasoil[m.matricule] || 0}
+                                                    onChange={e => setFraisGasoil(prev => ({ ...prev, [m.matricule]: parseFloat(e.target.value) || 0 }))}
+                                                    className="w-full text-center text-sm font-bold text-slate-700 bg-transparent border border-slate-300 rounded px-1 py-1"
+                                                />
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Total Charges */}
+                                    <div className="flex bg-red-100 border-t-2 border-red-400 border-b-2 border-red-400">
+                                        <div className="sticky left-0 z-10 w-56 bg-red-200 border-r-2 border-slate-400 p-3 flex-shrink-0">
+                                            <span className="text-sm font-bold text-red-900">Total charges</span>
+                                        </div>
+                                        <div className="w-32 bg-red-200 border-r-2 border-slate-300 flex-shrink-0"></div>
+                                        {monteursChantier.map((m: any) => {
+                                            const totalCharges =
+                                                (fraisTransport[m.matricule] || 0) +
+                                                (fraisRepas[m.matricule] || 0) +
+                                                (fraisLoyer[m.matricule] || 0) +
+                                                (fraisGasoil[m.matricule] || 0);
+                                            return (
+                                                <div key={`charges-${m.matricule}`} className="w-40 bg-red-100 border-r border-red-300 p-2 text-center flex-shrink-0">
+                                                    <span className="text-base font-bold text-red-900">{totalCharges.toFixed(2)}</span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+
+                                    {/* Dépenses du mois (Total général) */}
+                                    <div className="flex bg-gradient-to-r from-purple-100 to-indigo-100 border-t-4 border-purple-600">
+                                        <div className="sticky left-0 z-10 w-56 bg-purple-200 border-r-2 border-purple-600 p-4 flex-shrink-0">
+                                            <span className="text-base font-bold text-purple-900">Dépenses du mois</span>
+                                        </div>
+                                        <div className="w-32 bg-purple-200 border-r-2 border-purple-600 p-4 text-center flex-shrink-0">
+                                            <span className="text-lg font-bold text-purple-900">
+                                                {monteursChantier.reduce((sum: number, m: any) => {
+                                                    const total = getMonthTotal(m.matricule);
+                                                    const salaire = total * (salaires[m.matricule] || 120);
+                                                    const totalCharges =
+                                                        (fraisTransport[m.matricule] || 0) +
+                                                        (fraisRepas[m.matricule] || 0) +
+                                                        (fraisLoyer[m.matricule] || 0) +
+                                                        (fraisGasoil[m.matricule] || 0);
+                                                    return sum + salaire + totalCharges;
+                                                }, 0).toFixed(2)} DH
+                                            </span>
+                                        </div>
+                                        {monteursChantier.map((m: any) => {
+                                            const total = getMonthTotal(m.matricule);
+                                            const salaire = total * (salaires[m.matricule] || 120);
+                                            const totalCharges =
+                                                (fraisTransport[m.matricule] || 0) +
+                                                (fraisRepas[m.matricule] || 0) +
+                                                (fraisLoyer[m.matricule] || 0) +
+                                                (fraisGasoil[m.matricule] || 0);
+                                            const depensesTotales = salaire + totalCharges;
+                                            return (
+                                                <div key={`depenses-${m.matricule}`} className="w-40 bg-purple-100 border-r border-purple-300 p-3 text-center flex-shrink-0">
+                                                    <div className="text-lg font-bold text-purple-900">{depensesTotales.toFixed(2)}</div>
+                                                    <div className="text-xs text-purple-700">DH</div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
                             </div>
                         </div>

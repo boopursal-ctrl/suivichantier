@@ -1136,7 +1136,7 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
       </div>
 
       {/* TABS */}
-      <div className="flex overflow-x-auto gap-2 border-b border-gray-200 pb-1">
+      <div className="flex overflow-x-auto gap-2 border-b border-gray-200 pb-1 mb-6 -mx-4 px-4 md:mx-0 md:px-0 scrollbar-hide">
         {[
           { id: 'infos', label: 'Infos', icon: CheckCircle2 },
           { id: 'avancement', label: 'Avancement', icon: TrendingUp },
@@ -1320,7 +1320,7 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
               </button>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden overflow-x-auto">
               <table className="w-full text-sm text-left">
                 <thead className="bg-gray-100 text-gray-600 font-bold uppercase text-xs">
                   <tr>
@@ -1571,7 +1571,7 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
               <h3 className="text-xl font-bold text-slate-800">Matériel & Colisage Affecté</h3>
             </div>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
                   <tr>
