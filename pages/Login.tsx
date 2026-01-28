@@ -18,7 +18,9 @@ const Login: React.FC = () => {
 
     try {
       // await is crucial here to wait for the result
-      const result = await login(email, password);
+      const cleanEmail = email.trim().toLowerCase();
+      const cleanPassword = password.trim();
+      const result = await login(cleanEmail, cleanPassword);
       if (!result.success) {
         // If login returns false, we show the returned message
         setError(result.message || 'Email ou mot de passe incorrect.');

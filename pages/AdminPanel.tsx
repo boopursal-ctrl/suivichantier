@@ -2,7 +2,8 @@
 import React, { useState } from 'react';
 import { useData } from '../contexts/DataContext';
 import { supabase } from '../services/supabaseClient';
-import { Shield, UserPlus, Trash2, Mail, CheckCircle, XCircle, Edit, Save, X, FileText, Activity } from 'lucide-react';
+import { Shield, UserPlus, Trash2, Mail, CheckCircle, XCircle, Edit, Save, X, FileText, Activity, Key, Eye, EyeOff } from 'lucide-react';
+import { toast } from 'sonner';
 import { User, UserRole, AppModule, AuditLog } from '../types';
 
 const AdminPanel: React.FC = () => {
@@ -13,11 +14,14 @@ const AdminPanel: React.FC = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Default new user state
   const [formData, setFormData] = useState<Partial<User>>({
     name: '',
     email: '',
+    password: '',
     role: 'USER',
     isActive: true,
     allowedModules: ['dashboard']
@@ -29,8 +33,13 @@ const AdminPanel: React.FC = () => {
     { id: 'stock', label: 'Stock & Matériel' },
     { id: 'clients', label: 'Clients' },
     { id: 'monteurs', label: 'Ressources Humaines' },
-    { id: 'rapports', label: 'Rapports Financiers' },
-    { id: 'admin', label: 'Administration' },
+    { id: 'matrice', label: 'Matrice de Suivi' },
+    { id: 'planning', label: 'Planning' },
+    { id: 'chef_chantier', label: 'Espace Chef Chantier' },
+    { id: 'pointage_mensuel', label: 'Pointage Mensuel' },
+    { id: 'contrats', label: 'Gestion Contrats' },
+    { id: 'rapports', label: 'Rapports & Stats' },
+    { id: 'admin', label: 'Administration SaaS' },
   ];
 
   // Fetch Logs
@@ -64,33 +73,46 @@ const AdminPanel: React.FC = () => {
       setFormData({
         name: '',
         email: '',
+        password: '',
         role: 'USER',
         isActive: true,
         allowedModules: ['dashboard', 'chantiers'] // Default modules for new user
       });
     }
     setIsModalOpen(true);
+    setShowPassword(false);
   };
 
-  const handleSaveUser = (e: React.FormEvent) => {
+  const handleSaveUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.email) return;
 
-    if (editingUser) {
-      updateUser({ ...editingUser, ...formData } as User);
-    } else {
-      const newUser: User = {
-        id: self.crypto.randomUUID(),
-        password: '123456', // Default
-        name: formData.name!,
-        email: formData.email!,
-        role: formData.role as UserRole,
-        isActive: formData.isActive || false,
-        allowedModules: formData.allowedModules || []
-      };
-      addUser(newUser);
+    setSaving(true);
+    try {
+      if (editingUser) {
+        await updateUser({ ...editingUser, ...formData } as User);
+        toast.success("Utilisateur mis à jour");
+        setIsModalOpen(false);
+      } else {
+        const newUser: User = {
+          id: self.crypto.randomUUID(),
+          password: (formData.password || '12345678').trim(),
+          name: formData.name.trim(),
+          email: formData.email.trim().toLowerCase(),
+          role: formData.role as UserRole,
+          isActive: formData.isActive || false,
+          allowedModules: formData.allowedModules || []
+        };
+        await addUser(newUser);
+        toast.success("Utilisateur créé avec succès");
+        setIsModalOpen(false);
+      }
+    } catch (error: any) {
+      console.error("Error saving user:", error);
+      toast.error(error.message || "Erreur lors de l'enregistrement");
+    } finally {
+      setSaving(false);
     }
-    setIsModalOpen(false);
   };
 
   const toggleModule = (moduleId: AppModule) => {
@@ -348,6 +370,31 @@ const AdminPanel: React.FC = () => {
                     <option value="ADMINISTRATIF">Service Administratif/RH</option>
                   </select>
                 </div>
+                {!editingUser && (
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Mot de Passe par défaut</label>
+                    <div className="relative">
+                      <Key className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Par défaut: 12345678"
+                        className="w-full pl-9 pr-10 border rounded-lg px-3 py-2 bg-gray-50 focus:bg-white transition-colors"
+                        value={formData.password || ''}
+                        onChange={e => setFormData({ ...formData, password: e.target.value })}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-gray-500 mt-1 italic">
+                      L'utilisateur pourra changer ce mot de passe ultérieurement.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="border-t border-gray-100 my-4"></div>
@@ -411,10 +458,10 @@ const AdminPanel: React.FC = () => {
               </div>
 
               <div className="pt-4 flex justify-end gap-3 border-t border-gray-100 mt-6">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">Annuler</button>
-                <button type="submit" className="px-6 py-2 bg-red-700 text-white rounded-lg hover:bg-red-800 font-medium flex items-center">
+                <button type="button" onClick={() => setIsModalOpen(false)} disabled={saving} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">Annuler</button>
+                <button type="submit" disabled={saving} className="px-6 py-2 bg-red-700 text-white rounded-lg hover:bg-red-800 font-medium flex items-center disabled:opacity-50">
                   <Save className="w-4 h-4 mr-2" />
-                  Enregistrer
+                  {saving ? 'Enregistrement...' : 'Enregistrer'}
                 </button>
               </div>
             </form>
