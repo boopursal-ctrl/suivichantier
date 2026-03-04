@@ -21,6 +21,7 @@ const Planning = lazy(() => import('./pages/Planning'));
 const ChefChantier = lazy(() => import('./pages/ChefChantier'));
 const PointageMensuel = lazy(() => import('./pages/PointageMensuel'));
 const Contrats = lazy(() => import('./pages/Contrats'));
+const Avances = lazy(() => import('./pages/Avances'));
 
 const LoadingScreen = () => (
   <div className="flex h-full w-full items-center justify-center p-20">
@@ -134,6 +135,7 @@ const AppContent: React.FC = () => {
       case 'planning': return <Planning />;
       case 'pointage_mensuel': return <PointageMensuel />;
       case 'contrats': return <Contrats />;
+      case 'avances': return <Avances />;
       default: return <Dashboard navigateTo={handleNavigate} />;
     }
   };

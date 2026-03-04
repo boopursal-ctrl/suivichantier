@@ -17,6 +17,13 @@ export async function createContratAutomatique(
     userEmail?: string
 ): Promise<Contrat | null> {
     try {
+        const PERMANENT_MANAGEMENT_MATRICULES = [100, 101, 102, 103, 104, 157];
+
+        if (PERMANENT_MANAGEMENT_MATRICULES.includes(Number(monteur.matricule))) {
+            console.log(`ℹ️ Saut de la création de contrat pour le permanent ${monteur.nom_monteur} (Mat: ${monteur.matricule})`);
+            return null;
+        }
+
         console.log(`📝 Création automatique du contrat pour ${monteur.nom_monteur} sur ${chantier.ref_chantier}`);
 
         // 1. Clôturer automatiquement les contrats actifs existants

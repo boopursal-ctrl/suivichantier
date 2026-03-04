@@ -7,6 +7,7 @@ import { Search, Plus, FileText, Camera, Printer, Trash2, Edit, Upload, Eye, Har
 import { formatDate } from '../utils';
 
 const Monteurs: React.FC = () => {
+  const PERMANENT_MANAGEMENT_MATRICULES = [100, 101, 102, 103, 104, 157];
   const { monteurs, addMonteur, updateMonteur, deleteMonteur, loadingData, refreshData, affectations, chantiers, interimaires, updateInterimaire, addInterimaire } = useData();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isContractModalOpen, setIsContractModalOpen] = useState(false);
@@ -470,7 +471,7 @@ const Monteurs: React.FC = () => {
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex justify-end gap-2">
-                            {monteur.type_unified !== 'PREVU' && (
+                            {monteur.type_unified !== 'PREVU' && !PERMANENT_MANAGEMENT_MATRICULES.includes(Number(monteur.matricule)) && (
                               <button
                                 onClick={() => handleGenerateContract(monteur)}
                                 className="p-2 text-gray-500 hover:text-indigo-600 bg-gray-50 hover:bg-indigo-50 rounded disabled:opacity-50 disabled:cursor-not-allowed"

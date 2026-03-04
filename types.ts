@@ -22,7 +22,7 @@ export interface MouvementStock {
 
 export type UserRole = 'ADMIN' | 'MANAGER' | 'USER' | 'COMPTABILITE' | 'TECHNIQUE' | 'ADMINISTRATIF';
 export type RoleMonteur = 'OUVRIER' | 'CHEF_CHANTIER';
-export type AppModule = 'dashboard' | 'chantiers' | 'stock' | 'clients' | 'monteurs' | 'rapports' | 'admin' | 'matrice' | 'planning' | 'chef_chantier' | 'pointage_mensuel' | 'contrats';
+export type AppModule = 'dashboard' | 'chantiers' | 'stock' | 'clients' | 'monteurs' | 'rapports' | 'admin' | 'matrice' | 'planning' | 'chef_chantier' | 'pointage_mensuel' | 'contrats' | 'avances';
 
 export type StadeAvancement = 'démarrage' | 'en_cours' | 'avancé' | 'presque_terminé' | 'finalisé';
 
@@ -244,4 +244,65 @@ export interface AuditLog {
   details: any;
   user_email?: string; // For display
   created_at: string;
+}
+
+// Analyse de chantier
+export interface AnalyseChantier {
+  id_analyse: string;
+  id_chantier: string;
+
+  // Critères d'évaluation
+  budget_prevu: number;
+  budget_reel: number;
+  budget_respecte: boolean;
+  ecart_budget: number;
+  pourcentage_ecart_budget: number;
+
+  duree_prevue: number;
+  duree_reelle: number;
+  duree_respectee: boolean;
+  ecart_duree: number;
+
+  bl_cachete: boolean;
+  bc_cachete: boolean;
+  br_cachete: boolean;
+  bl_url?: string;
+  bc_url?: string;
+  br_url?: string;
+
+  remarques?: string;
+
+  // Résultat global
+  tous_criteres_parfaits: boolean;
+
+  // Métadonnées
+  date_analyse: string;
+  genere_par?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type StatutPrime = 'en_attente' | 'validee' | 'refusee';
+
+export interface PrimeChantier {
+  id_prime: string;
+  id_analyse: string;
+  id_chantier: string;
+
+  // Bénéficiaire
+  matricule: number;
+  nom_monteur: string;
+  role_chantier: string; // 'Chef de Chantier' ou 'Sous Chef de Chantier'
+
+  // Montant
+  montant_prime: number;
+
+  // Validation
+  statut: StatutPrime;
+  validee_par?: string;
+  date_validation?: string;
+  commentaire_validation?: string;
+
+  created_at?: string;
+  updated_at?: string;
 }

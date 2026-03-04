@@ -33,6 +33,7 @@ import {
 import { cn, formatDate } from '../utils';
 import { toast } from 'sonner';
 import { supabase } from '../services/supabaseClient';
+import { mysqlService } from '../services/mysqlService';
 
 interface PointageData {
     [matricule: string]: {
@@ -40,7 +41,10 @@ interface PointageData {
     };
 }
 
+const PERMANENT_MANAGEMENT_MATRICULES = [100, 101, 102, 103, 104, 157];
+
 const PointageMensuel = () => {
+
     const { chantiers, monteurs, affectations } = useData();
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedChantier, setSelectedChantier] = useState<string | null>(null);
@@ -203,15 +207,28 @@ const PointageMensuel = () => {
             });
         }
 
-        // Initialiser salaires pour nouveaux monteurs
-        allMonteurs.forEach(m => {
-            if (!salaires[m.matricule]) {
-                setSalaires(prev => ({ ...prev, [m.matricule]: 120 }));
-            }
-        });
 
         return allMonteurs;
-    }, [selectedChantier, affectations, monteurs, chantiers, salaires]);
+    }, [selectedChantier, affectations, monteurs, chantiers]);
+
+    // Initialiser les salaires pour les nouveaux monteurs
+    useEffect(() => {
+        if (monteursChantier.length === 0) return;
+
+        setSalaires(prev => {
+            const next = { ...prev };
+            let hasChanges = false;
+
+            monteursChantier.forEach(m => {
+                if (next[m.matricule] === undefined) {
+                    next[m.matricule] = 120;
+                    hasChanges = true;
+                }
+            });
+
+            return hasChanges ? next : prev;
+        });
+    }, [monteursChantier]);
 
     // Grouper par semaine
     const weeks = useMemo(() => {
@@ -370,7 +387,7 @@ const PointageMensuel = () => {
                 const jours_data = pointages[matricule] || {};
                 const total_jours = Number(getMonthTotal(matricule));
                 const salaire_journalier = Number(salaires[matricule] || 120);
-                const total_salaire = total_jours * salaire_journalier;
+                const total_salaire = (total_jours * salaire_journalier);
 
                 const frais_t = Number(fraisTransport[matricule] || 0);
                 const frais_r = Number(fraisRepas[matricule] || 0);
@@ -402,12 +419,20 @@ const PointageMensuel = () => {
                 });
             }
 
-            // Upsert (insert or update)
+            // 1. Sauvegarde Supabase (Backup)
             const { error } = await supabase
                 .from('pointages_mensuels')
                 .upsert(updates, { onConflict: 'id_chantier,matricule,mois,annee' });
 
             if (error) throw error;
+
+            // 2. Sauvegarde MySQL (Principal pour les Avances)
+            try {
+                await mysqlService.query('save_pointages', {}, updates);
+            } catch (mysqlError) {
+                console.error('Erreur sync MySQL:', mysqlError);
+                toast.warning("Pointage sauvé sur Supabase, mais erreur serveur MySQL.");
+            }
 
             toast.success("Pointage enregistré avec succès !");
 
@@ -563,7 +588,8 @@ const PointageMensuel = () => {
                                 <p className="text-xl font-bold text-gray-800">
                                     {monteursChantier.reduce((sum, m) => {
                                         const t = Number(getMonthTotal(m.matricule));
-                                        const s = Number(salaires[m.matricule] || 120);
+                                        const isPermanentManagement = PERMANENT_MANAGEMENT_MATRICULES.includes(Number(m.matricule));
+                                        const s = isPermanentManagement ? 0 : Number(salaires[m.matricule] || 120);
                                         return sum + (t * s);
                                     }, 0).toLocaleString()} <span className="text-xs font-normal">DH</span>
                                 </p>
@@ -626,7 +652,10 @@ const PointageMensuel = () => {
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                     {monteursChantier.map(m => {
                                         const total = Number(getMonthTotal(m.matricule));
-                                        const salaire = total * Number(salaires[m.matricule] || 120);
+                                        const isPermanentManagement = PERMANENT_MANAGEMENT_MATRICULES.includes(Number(m.matricule));
+                                        const rawSalaire = Number(salaires[m.matricule] || 120);
+                                        const displaySalaireJ = isPermanentManagement ? 0 : rawSalaire;
+                                        const totalSalaire = isPermanentManagement ? 0 : (total * rawSalaire);
 
                                         return (
                                             <button
@@ -648,11 +677,11 @@ const PointageMensuel = () => {
                                                 <div className="grid grid-cols-2 gap-1.5">
                                                     <div className="bg-blue-50 p-1.5 rounded">
                                                         <p className="text-[9px] text-blue-600 font-medium mb-0.5">Salaire/J</p>
-                                                        <p className="text-xs font-bold text-blue-900">{salaires[m.matricule] || 120} DH</p>
+                                                        <p className="text-xs font-bold text-blue-900">{displaySalaireJ} DH</p>
                                                     </div>
                                                     <div className="bg-purple-50 p-1.5 rounded">
                                                         <p className="text-[9px] text-purple-600 font-medium mb-0.5">Total</p>
-                                                        <p className="text-xs font-bold text-purple-900">{salaire.toFixed(0)} DH</p>
+                                                        <p className="text-xs font-bold text-purple-900">{totalSalaire.toFixed(0)} DH</p>
                                                     </div>
                                                 </div>
                                             </button>
@@ -695,7 +724,7 @@ const PointageMensuel = () => {
                                                             type="number"
                                                             step="0.01"
                                                             value={salaires[monteur.matricule] || 120}
-                                                            onChange={e => setSalaires(prev => ({ ...prev, [monteur.matricule]: parseFloat(e.target.value) || 120 }))}
+                                                            onChange={e => setSalaires(prev => ({ ...prev, [monteur.matricule]: parseFloat(e.target.value) || 0 }))}
                                                             className="w-full text-base font-bold text-slate-900 border border-slate-300 rounded px-2 py-1"
                                                         />
                                                     </div>
@@ -755,13 +784,16 @@ const PointageMensuel = () => {
                                                 <div className="space-y-2">
                                                     <div className="flex justify-between items-center">
                                                         <span className="text-sm text-slate-600">Avance:</span>
-                                                        <input
-                                                            type="number"
-                                                            step="0.01"
-                                                            value={avances[monteur.matricule] || 0}
-                                                            onChange={e => setAvances(prev => ({ ...prev, [monteur.matricule]: parseFloat(e.target.value) || 0 }))}
-                                                            className="w-24 text-right text-sm font-bold text-amber-900 border border-amber-300 rounded px-2 py-1"
-                                                        />
+                                                        <div className="flex flex-col items-end">
+                                                            <input
+                                                                type="number"
+                                                                value={avances[monteur.matricule] || 0}
+                                                                readOnly
+                                                                disabled
+                                                                className="w-24 text-right text-sm font-bold text-amber-900 bg-gray-50 border border-amber-200 rounded px-2 py-1 cursor-not-allowed"
+                                                            />
+                                                            <span className="text-[10px] text-gray-500">Voir module Avances</span>
+                                                        </div>
                                                     </div>
 
                                                     <div className="flex justify-between items-center pt-2 border-t border-slate-300">
@@ -820,9 +852,10 @@ const PointageMensuel = () => {
                                                 <input
                                                     type="number"
                                                     step="0.01"
-                                                    value={salaires[m.matricule] || 120}
-                                                    onChange={e => setSalaires(prev => ({ ...prev, [m.matricule]: parseFloat(e.target.value) || 120 }))}
-                                                    className="w-full text-center text-xs md:text-sm font-bold text-slate-900 bg-transparent border border-slate-300 rounded px-1 py-1"
+                                                    value={PERMANENT_MANAGEMENT_MATRICULES.includes(Number(m.matricule)) ? 0 : (salaires[m.matricule] || 120)}
+                                                    onChange={e => setSalaires(prev => ({ ...prev, [m.matricule]: parseFloat(e.target.value) || 0 }))}
+                                                    disabled={PERMANENT_MANAGEMENT_MATRICULES.includes(Number(m.matricule))}
+                                                    className="w-full text-center text-xs md:text-sm font-bold text-slate-900 bg-transparent border border-slate-300 rounded px-1 py-1 disabled:bg-gray-100 disabled:text-gray-400"
                                                 />
                                             </div>
                                         ))}
@@ -925,8 +958,9 @@ const PointageMensuel = () => {
                                     </div>
                                     <div className="w-32 bg-emerald-200 border-r-2 border-emerald-600 flex-shrink-0"></div>
                                     {monteursChantier.map((m: any) => {
-                                        const total = getMonthTotal(m.matricule);
-                                        const salaire = total * (salaires[m.matricule] || 120);
+                                        const total = Number(getMonthTotal(m.matricule));
+                                        const isPermanentManagement = PERMANENT_MANAGEMENT_MATRICULES.includes(Number(m.matricule));
+                                        const salaire = isPermanentManagement ? 0 : (total * (Number(salaires[m.matricule]) || 120));
                                         return (
                                             <div key={`month-total-${m.matricule}`} className="w-40 bg-emerald-100 border-r border-emerald-400 p-2 text-center flex-shrink-0">
                                                 <div className="text-lg font-bold text-emerald-900">{total.toFixed(2)}</div>
@@ -947,13 +981,18 @@ const PointageMensuel = () => {
                                         <div className="w-32 bg-amber-100 border-r-2 border-slate-300 flex-shrink-0"></div>
                                         {monteursChantier.map((m: any) => (
                                             <div key={`avance-${m.matricule}`} className="w-40 bg-white border-r border-slate-300 p-1 flex-shrink-0">
-                                                <input
-                                                    type="number"
-                                                    step="0.01"
-                                                    value={avances[m.matricule] || 0}
-                                                    onChange={e => setAvances(prev => ({ ...prev, [m.matricule]: parseFloat(e.target.value) || 0 }))}
-                                                    className="w-full text-center text-sm font-bold text-amber-900 bg-transparent border border-amber-300 rounded px-1 py-1"
-                                                />
+                                                <div className="relative group/avance">
+                                                    <input
+                                                        type="number"
+                                                        value={avances[m.matricule] || 0}
+                                                        readOnly
+                                                        disabled
+                                                        className="w-full text-center text-sm font-bold text-amber-900 bg-gray-50 border border-amber-200 rounded px-1 py-1 cursor-not-allowed opacity-70"
+                                                    />
+                                                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/avance:opacity-100 bg-black/50 text-white text-[10px] rounded pointer-events-none transition-opacity">
+                                                        Voir module Avances
+                                                    </div>
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
@@ -965,8 +1004,9 @@ const PointageMensuel = () => {
                                         </div>
                                         <div className="w-32 bg-blue-100 border-r-2 border-slate-300 flex-shrink-0"></div>
                                         {monteursChantier.map((m: any) => {
-                                            const total = getMonthTotal(m.matricule);
-                                            const salaire = total * (salaires[m.matricule] || 120);
+                                            const total = Number(getMonthTotal(m.matricule));
+                                            const isPermanentManagement = PERMANENT_MANAGEMENT_MATRICULES.includes(Number(m.matricule));
+                                            const salaire = isPermanentManagement ? 0 : (total * (Number(salaires[m.matricule]) || 120));
                                             return (
                                                 <div key={`total-travail-${m.matricule}`} className="w-40 bg-blue-50 border-r border-blue-300 p-2 text-center flex-shrink-0">
                                                     <span className="text-base font-bold text-blue-900">{salaire.toFixed(2)}</span>
@@ -982,9 +1022,10 @@ const PointageMensuel = () => {
                                         </div>
                                         <div className="w-32 bg-green-100 border-r-2 border-slate-300 flex-shrink-0"></div>
                                         {monteursChantier.map((m: any) => {
-                                            const total = getMonthTotal(m.matricule);
-                                            const salaire = total * (salaires[m.matricule] || 120);
-                                            const reste = salaire - (avances[m.matricule] || 0);
+                                            const total = Number(getMonthTotal(m.matricule));
+                                            const isPermanentManagement = PERMANENT_MANAGEMENT_MATRICULES.includes(Number(m.matricule));
+                                            const salaire = isPermanentManagement ? 0 : (total * (Number(salaires[m.matricule]) || 120));
+                                            const reste = salaire - (Number(avances[m.matricule]) || 0);
                                             return (
                                                 <div key={`reste-${m.matricule}`} className="w-40 bg-green-50 border-r border-green-300 p-2 text-center flex-shrink-0">
                                                     <span className="text-base font-bold text-green-900">{reste.toFixed(2)}</span>
@@ -1110,25 +1151,27 @@ const PointageMensuel = () => {
                                         <div className="w-32 bg-purple-200 border-r-2 border-purple-600 p-4 text-center flex-shrink-0">
                                             <span className="text-lg font-bold text-purple-900">
                                                 {monteursChantier.reduce((sum: number, m: any) => {
-                                                    const total = getMonthTotal(m.matricule);
-                                                    const salaire = total * (salaires[m.matricule] || 120);
+                                                    const total = Number(getMonthTotal(m.matricule));
+                                                    const isPermanentManagement = PERMANENT_MANAGEMENT_MATRICULES.includes(Number(m.matricule));
+                                                    const salaire = isPermanentManagement ? 0 : (total * (Number(salaires[m.matricule]) || 120));
                                                     const totalCharges =
-                                                        (fraisTransport[m.matricule] || 0) +
-                                                        (fraisRepas[m.matricule] || 0) +
-                                                        (fraisLoyer[m.matricule] || 0) +
-                                                        (fraisGasoil[m.matricule] || 0);
+                                                        (Number(fraisTransport[m.matricule]) || 0) +
+                                                        (Number(fraisRepas[m.matricule]) || 0) +
+                                                        (Number(fraisLoyer[m.matricule]) || 0) +
+                                                        (Number(fraisGasoil[m.matricule]) || 0);
                                                     return sum + salaire + totalCharges;
                                                 }, 0).toFixed(2)} DH
                                             </span>
                                         </div>
                                         {monteursChantier.map((m: any) => {
-                                            const total = getMonthTotal(m.matricule);
-                                            const salaire = total * (salaires[m.matricule] || 120);
+                                            const total = Number(getMonthTotal(m.matricule));
+                                            const isPermanentManagement = PERMANENT_MANAGEMENT_MATRICULES.includes(Number(m.matricule));
+                                            const salaire = isPermanentManagement ? 0 : (total * (Number(salaires[m.matricule]) || 120));
                                             const totalCharges =
-                                                (fraisTransport[m.matricule] || 0) +
-                                                (fraisRepas[m.matricule] || 0) +
-                                                (fraisLoyer[m.matricule] || 0) +
-                                                (fraisGasoil[m.matricule] || 0);
+                                                (Number(fraisTransport[m.matricule]) || 0) +
+                                                (Number(fraisRepas[m.matricule]) || 0) +
+                                                (Number(fraisLoyer[m.matricule]) || 0) +
+                                                (Number(fraisGasoil[m.matricule]) || 0);
                                             const depensesTotales = salaire + totalCharges;
                                             return (
                                                 <div key={`depenses-${m.matricule}`} className="w-40 bg-purple-100 border-r border-purple-300 p-3 text-center flex-shrink-0">

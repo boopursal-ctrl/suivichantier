@@ -167,30 +167,30 @@ const Dashboard: React.FC<DashboardProps> = ({ navigateTo }) => {
             </div>
           </div>
 
-          {/* Card 3: RH - Dark Mode */}
-          <div onClick={() => navigateTo('monteurs')} className="relative overflow-hidden rounded-[24px] bg-slate-900 p-8 text-white shadow-xl shadow-slate-200 hover:shadow-2xl hover:scale-[1.02] transition-all cursor-pointer group">
-            <div className="absolute -bottom-10 -right-10 p-6 opacity-20 text-slate-700">
+          {/* Card 3: RH - Light Theme */}
+          <div onClick={() => navigateTo('monteurs')} className="relative overflow-hidden rounded-[24px] bg-white p-8 border border-gray-100 shadow-xl shadow-indigo-50 hover:shadow-2xl hover:scale-[1.02] transition-all cursor-pointer group">
+            <div className="absolute -bottom-10 -right-10 p-6 opacity-5 text-indigo-200">
               <Users size={180} />
             </div>
             <div className="relative z-10 space-y-6">
               <div className="flex items-center gap-3">
-                <div className="p-3 bg-slate-800 rounded-2xl border border-slate-700">
-                  <Users size={24} className="text-violet-400" />
+                <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl">
+                  <Users size={24} />
                 </div>
-                <span className="font-semibold text-slate-400 tracking-wide uppercase text-sm">Force de Travail</span>
+                <span className="font-semibold text-gray-400 tracking-wide uppercase text-sm">Force de Travail</span>
               </div>
               <div>
-                <h3 className="text-5xl font-black tracking-tight">{activeMonteurs.length}</h3>
-                <p className="text-slate-400 font-medium mt-1">Monteurs actifs sur terrain</p>
+                <h3 className="text-5xl font-black text-gray-900 tracking-tight">{activeMonteurs.length}</h3>
+                <p className="text-gray-500 font-medium mt-1">Monteurs actifs sur terrain</p>
               </div>
               <div className="flex -space-x-3 pt-2">
                 {[...Array(Math.min(5, activeMonteurs.length))].map((_, i) => (
-                  <div key={i} className="w-10 h-10 rounded-full border-4 border-slate-900 bg-slate-700 flex items-center justify-center text-xs font-bold">
+                  <div key={i} className="w-10 h-10 rounded-full border-4 border-white bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold">
                     {String.fromCharCode(65 + i)}
                   </div>
                 ))}
                 {activeMonteurs.length > 5 && (
-                  <div className="w-10 h-10 rounded-full border-4 border-slate-900 bg-violet-600 flex items-center justify-center text-xs font-bold">
+                  <div className="w-10 h-10 rounded-full border-4 border-white bg-indigo-600 text-white flex items-center justify-center text-xs font-bold">
                     +{activeMonteurs.length - 5}
                   </div>
                 )}
@@ -258,7 +258,7 @@ const Dashboard: React.FC<DashboardProps> = ({ navigateTo }) => {
             </div>
 
             <div className="h-[300px] md:h-[400px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <AreaChart data={chartData} margin={{ top: 20, right: 0, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorReelPremium" x1="0" y1="0" x2="0" y2="1">

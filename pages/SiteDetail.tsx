@@ -6,10 +6,11 @@
 import React, { useState } from 'react';
 import { useData } from '../contexts/DataContext';
 import { LigneCout, AffectationMonteur, Versement, TypeCout, Chantier, MonteurLocal, StadeAvancement } from '../types';
-import { formatCurrency, formatDate, countDays } from '../utils';
-import { ArrowLeft, Box, Truck, Plus, Trash2, Edit2, Wallet, Users, Banknote, Calendar, MapPin, CheckCircle2, AlertTriangle, X, FileText, Car, HardHat, Save, MessageSquare, Minus, Search, UserPlus, ArrowRight, Utensils, Home, TrendingUp } from 'lucide-react';
+import { formatCurrency, formatDate, countDays, cn } from '../utils';
+import { ArrowLeft, Box, Truck, Plus, Trash2, Edit2, Wallet, Users, Banknote, Calendar, MapPin, CheckCircle2, AlertTriangle, X, FileText, Car, HardHat, Save, MessageSquare, Minus, Search, UserPlus, ArrowRight, Utensils, Home, TrendingUp, BarChart3 } from 'lucide-react';
 import { createContratAutomatique } from '../services/contratService';
 import { useAuth } from '../contexts/AuthContext';
+import AnalyseChantierPage from './AnalyseChantier';
 
 
 interface SiteDetailProps {
@@ -70,6 +71,7 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
   // So we will handle the "if (!chantier)" check later or use optional chaining.
 
   const [activeTab, setActiveTab] = useState<'infos' | 'avancement' | 'equipe' | 'depenses' | 'paiements' | 'materiel'>('infos');
+  const [showAnalyse, setShowAnalyse] = useState(false);
 
   // Avancement Modal State
   const [isProgressModalOpen, setIsProgressModalOpen] = useState(false);
@@ -78,6 +80,9 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
     pourcentage: 0,
     commentaire: ''
   });
+
+  // --- PERMANENT STAFF TO IGNORE IN CONTRACTS & DAILY WAGES ---
+  const PERMANENT_MANAGEMENT_MATRICULES = [100, 101, 102, 103, 104, 157];
 
   // --- UNIFIED WORKER LOGIC START ---
 
@@ -120,7 +125,7 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
         cout_jour: w.salaire_jour,
         date_debut: w.date_entree,
         date_fin: w.date_sortie,
-        total_cost: (days * w.salaire_jour) + relatedCosts,
+        total_cost: (PERMANENT_MANAGEMENT_MATRICULES.includes(Number(w.matricule)) ? 0 : (days * w.salaire_jour)) + relatedCosts,
         relatedCosts,
         originalObject: w,
         ville_residence: monteur?.ville_residence
@@ -499,7 +504,11 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
   const [infoFormData, setInfoFormData] = useState({
     plan_reference: '',
     vehicule_utilise: false,
-    documents_at_rc: false
+    documents_at_rc: false,
+    date_debut: '',
+    date_fin: '',
+    responsable_chantier: '',
+    chef_chantier: ''
   });
 
   // Local Worker Form
@@ -739,16 +748,35 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
     setInfoFormData({
       plan_reference: chantier.plan_reference || '',
       vehicule_utilise: chantier.vehicule_utilise,
-      documents_at_rc: chantier.documents_at_rc
+      documents_at_rc: chantier.documents_at_rc,
+      date_debut: chantier.date_debut || '',
+      date_fin: chantier.date_fin || '',
+      responsable_chantier: chantier.responsable_chantier || '',
+      chef_chantier: chantier.chef_chantier || ''
     });
     setIsEditInfoModalOpen(true);
   };
 
   const handleUpdateInfo = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Recalculate duration if dates provided
+    let newDuree = chantier.duree_prevue;
+    if (infoFormData.date_debut && infoFormData.date_fin) {
+      newDuree = countDays(infoFormData.date_debut, infoFormData.date_fin);
+    }
+
+    // Auto-activate if dates are set and it was instance
+    let newStatut = chantier.statut;
+    if (infoFormData.date_debut && infoFormData.date_fin && newStatut === 'en_instance') {
+      newStatut = 'actif';
+    }
+
     updateChantier({
       ...chantier,
-      ...infoFormData
+      ...infoFormData,
+      duree_prevue: newDuree,
+      statut: newStatut
     });
     setIsEditInfoModalOpen(false);
   };
@@ -1015,6 +1043,16 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
     setIsPaymentModalOpen(false);
   };
 
+  // Si on affiche l'analyse, on affiche uniquement cette page
+  if (showAnalyse) {
+    return (
+      <AnalyseChantierPage
+        chantierId={chantierId}
+        onBack={() => setShowAnalyse(false)}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-20">
       {/* HEADER */}
@@ -1026,11 +1064,19 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
           <h1 className="text-2xl font-bold text-gray-900">{chantier.nom_client}</h1>
           <p className="text-gray-500 font-mono text-sm">{chantier.ref_chantier}</p>
         </div>
-        <div className="ml-auto">
-          <span className={`px - 4 py - 2 rounded - full font - bold text - sm ${chantier.statut === 'actif' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-            {chantier.statut.toUpperCase()}
+        <div className="ml-auto flex items-center gap-3">
+          {(chantier.statut?.toLowerCase() === 'terminé' || chantier.taux_avancement === 100) && (
+            <button
+              onClick={() => setShowAnalyse(true)}
+              className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-md hover:shadow-lg flex items-center gap-2"
+            >
+              <BarChart3 className="w-5 h-5" />
+              Générer Analyse
+            </button>
+          )}
+          <span className={`px-4 py-2 rounded-full font-bold text-sm ${(chantier.statut?.toLowerCase() === 'terminé' || chantier.taux_avancement === 100) ? 'bg-gray-100 text-gray-600' : 'bg-green-100 text-green-700'}`}>
+            {(chantier.statut?.toLowerCase() === 'terminé' || chantier.taux_avancement === 100) ? 'TERMINÉ' : chantier.statut.toUpperCase()}
           </span>
-
         </div>
       </div>
 
@@ -1165,78 +1211,125 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
       <div className="bg-white rounded-b-2xl rounded-tr-2xl shadow-sm border border-gray-200 border-t-0 p-6 min-h-[400px]">
         {/* --- TAB INFOS --- */}
         {activeTab === 'infos' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <div className="flex justify-between items-center border-b pb-2">
-                <h3 className="text-lg font-bold text-gray-800">Informations Générales</h3>
-              </div>
-              <ul className="space-y-4">
-                <li className="flex items-center p-3 bg-gray-50 rounded-lg">
-                  <Calendar className="w-5 h-5 text-gray-400 mr-3" />
-                  <div>
-                    <p className="text-xs text-gray-500">Période du chantier (Prévisionnelle)</p>
-                    <p className="font-medium">{formatDate(chantier.date_debut)} — {formatDate(chantier.date_fin)}</p>
-                    <p className="text-xs text-gray-400">{countDays(chantier.date_debut, chantier.date_fin)} Jours estimés</p>
-                  </div>
-                </li>
-                <li className="flex items-center p-3 bg-gray-50 rounded-lg">
-                  <MapPin className="w-5 h-5 text-gray-400 mr-3" />
-                  <div>
-                    <p className="text-xs text-gray-500">Ville / Zone</p>
-                    <p className="font-medium">{getCityName(chantier.ville_code)} <span className="text-gray-400 text-xs">(Code {chantier.ville_code})</span></p>
-                    {chantier.adresse && <p className="text-sm text-gray-600 mt-1">{chantier.adresse}</p>}
-                  </div>
-                </li>
-                <li className="flex items-center p-3 bg-gray-50 rounded-lg">
-                  <Users className="w-5 h-5 text-gray-400 mr-3" />
-                  <div>
-                    <p className="text-xs text-gray-500">Responsable</p>
-                    <p className="font-medium">{chantier.responsable_chantier}</p>
-                  </div>
-                </li>
-                {chantier.commentaire && (
-                  <li className="flex items-start p-3 bg-yellow-50 rounded-lg border border-yellow-100">
-                    <MessageSquare className="w-5 h-5 text-yellow-500 mr-3 mt-0.5" />
-                    <div>
-                      <p className="text-xs text-yellow-700 font-bold">Observation / Note</p>
-                      <p className="font-medium text-sm text-gray-700">{chantier.commentaire}</p>
-                    </div>
-                  </li>
-                )}
-              </ul>
+          <div className="space-y-6">
+            <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+              <h3 className="text-xl font-bold text-gray-800">Détails & Logistique du Projet</h3>
+              <button
+                onClick={handleEditInfoOpen}
+                className="px-4 py-2 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-xl shadow-md hover:shadow-lg transition-all active:scale-95 font-bold flex items-center"
+              >
+                <Edit2 size={16} className="mr-2" /> Modifier les informations
+              </button>
             </div>
 
-            <div className="space-y-4">
-              <div className="flex justify-between items-center border-b pb-2">
-                <h3 className="text-lg font-bold text-gray-800">Documents & Logistique</h3>
-                <button onClick={handleEditInfoOpen} className="text-sm text-red-700 hover:underline font-bold flex items-center">
-                  <Edit2 size={14} className="mr-1" /> Modifier
-                </button>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {/* Period Card */}
+              <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow flex flex-col gap-3 group">
+                <div className="flex items-center gap-3 text-blue-600">
+                  <div className="p-2 bg-blue-50 rounded-lg group-hover:bg-blue-100 transition-colors">
+                    <Calendar size={20} />
+                  </div>
+                  <span className="text-xs font-black uppercase tracking-widest">Période du Projet</span>
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-gray-900">{formatDate(chantier.date_debut)} — {formatDate(chantier.date_fin)}</p>
+                  <p className="text-sm font-medium text-gray-500 mt-1">{countDays(chantier.date_debut, chantier.date_fin)} Jours de prestation</p>
+                </div>
               </div>
-              <ul className="space-y-4">
-                <li className="flex items-center p-3 bg-gray-50 rounded-lg">
-                  <FileText className="w-5 h-5 text-gray-400 mr-3" />
-                  <div>
-                    <p className="text-xs text-gray-500">Référence Plan</p>
-                    <p className="font-medium font-mono">{chantier.plan_reference || 'Non spécifié'}</p>
+
+              {/* Location Card */}
+              <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow flex flex-col gap-3 group">
+                <div className="flex items-center gap-3 text-emerald-600">
+                  <div className="p-2 bg-emerald-50 rounded-lg group-hover:bg-emerald-100 transition-colors">
+                    <MapPin size={20} />
                   </div>
-                </li>
-                <li className="flex items-center p-3 bg-gray-50 rounded-lg">
-                  <Car className="w-5 h-5 text-gray-400 mr-3" />
-                  <div>
-                    <p className="text-xs text-gray-500">Véhicule Utilisé</p>
-                    <p className="font-medium">{chantier.vehicule_utilise ? 'Oui - Véhicule Société' : 'Non'}</p>
+                  <span className="text-xs font-black uppercase tracking-widest">Localisation</span>
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-gray-900">{getCityName(chantier.ville_code)}</p>
+                  <p className="text-sm font-medium text-gray-500 mt-1">{chantier.adresse || 'Ville: ' + chantier.ville_code}</p>
+                </div>
+              </div>
+
+              {/* Responsible Card */}
+              <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow flex flex-col gap-3 group">
+                <div className="flex items-center gap-3 text-purple-600">
+                  <div className="p-2 bg-purple-50 rounded-lg group-hover:bg-purple-100 transition-colors">
+                    <Users size={20} />
                   </div>
-                </li>
-                <li className="flex items-center p-3 bg-gray-50 rounded-lg">
-                  <CheckCircle2 className={`w - 5 h - 5 mr - 3 ${chantier.documents_at_rc ? 'text-green-500' : 'text-red-500'} `} />
-                  <div>
-                    <p className="text-xs text-gray-500">Documents d'ouverture (AT/RC)</p>
-                    <p className="font-medium">{chantier.documents_at_rc ? 'Validés' : 'Manquants'}</p>
+                  <span className="text-xs font-black uppercase tracking-widest">Sous Chef de Chantier</span>
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-gray-900">{chantier.responsable_chantier}</p>
+                  <p className="text-sm font-medium text-gray-500 mt-1">Sous chef de chantier affecté</p>
+                </div>
+              </div>
+
+              {/* Reference Card */}
+              <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow flex flex-col gap-3 group">
+                <div className="flex items-center gap-3 text-amber-600">
+                  <div className="p-2 bg-amber-50 rounded-lg group-hover:bg-amber-100 transition-colors">
+                    <FileText size={20} />
                   </div>
-                </li>
-              </ul>
+                  <span className="text-xs font-black uppercase tracking-widest">Référence Technique</span>
+                </div>
+                <div>
+                  <p className="font-mono text-lg font-black text-slate-800 break-all">{chantier.plan_reference || 'N/A'}</p>
+                  <p className="text-sm font-medium text-gray-500 mt-1">Identifiant plan / dossier</p>
+                </div>
+              </div>
+
+              {/* Vehicle Card */}
+              <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow flex flex-col gap-3 group">
+                <div className="flex items-center gap-3 text-slate-600">
+                  <div className="p-2 bg-slate-50 rounded-lg group-hover:bg-slate-100 transition-colors">
+                    <Car size={20} />
+                  </div>
+                  <span className="text-xs font-black uppercase tracking-widest">Moyens Logistiques</span>
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-gray-900">{chantier.vehicule_utilise ? 'Véhicule Société' : 'Pas de véhicule'}</p>
+                  <p className="text-sm font-medium text-gray-500 mt-1">Affectation de transport</p>
+                </div>
+              </div>
+
+              {/* Documents Card */}
+              <div className={cn(
+                "p-5 rounded-2xl border shadow-sm hover:shadow-md transition-shadow flex flex-col gap-3 group",
+                chantier.documents_at_rc ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'
+              )}>
+                <div className={cn("flex items-center gap-3", chantier.documents_at_rc ? 'text-green-600' : 'text-red-600')}>
+                  <div className={cn("p-2 rounded-lg transition-colors", chantier.documents_at_rc ? 'bg-white group-hover:bg-green-100' : 'bg-white group-hover:bg-red-100')}>
+                    {chantier.documents_at_rc ? <CheckCircle2 size={20} /> : <AlertTriangle size={20} />}
+                  </div>
+                  <span className="text-xs font-black uppercase tracking-widest">Habilitations AT/RC</span>
+                </div>
+                <div>
+                  <p className={cn("text-lg font-bold", chantier.documents_at_rc ? 'text-green-700' : 'text-red-700')}>
+                    {chantier.documents_at_rc ? 'Documents Validés' : 'Dossier Incomplet'}
+                  </p>
+                  <p className={cn("text-sm font-medium mt-1", chantier.documents_at_rc ? 'text-green-600/70' : 'text-red-600/70')}>
+                    Statut administratif d'ouverture
+                  </p>
+                </div>
+              </div>
             </div>
+
+            {chantier.commentaire && (
+              <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
+                  <MessageSquare size={120} />
+                </div>
+                <div className="relative z-10">
+                  <h4 className="text-slate-900 font-black text-xs uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
+                    <MessageSquare size={14} className="text-slate-400" /> Observation / Consignes Particulières
+                  </h4>
+                  <p className="text-slate-600 leading-relaxed font-serif italic text-lg line-clamp-4 group-hover:line-clamp-none transition-all duration-500">
+                    "{chantier.commentaire}"
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1761,6 +1854,55 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
                     onChange={e => setInfoFormData({ ...infoFormData, plan_reference: e.target.value })}
                     placeholder="Ex: 882-02..."
                   />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Sous Chef de Chantier</label>
+                    <input
+                      list="responsables-list-edit"
+                      className="w-full border rounded-xl px-4 py-3 bg-white"
+                      value={infoFormData.responsable_chantier || ''}
+                      onChange={e => setInfoFormData({ ...infoFormData, responsable_chantier: e.target.value })}
+                      placeholder="Chercher..."
+                    />
+                    <datalist id="responsables-list-edit">
+                      {monteurs
+                        .filter(m => [100, 101, 102, 103, 104, 157].includes(m.matricule))
+                        .map(m => <option key={m.matricule} value={m.nom_monteur} />)}
+                    </datalist>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Chef de Chantier</label>
+                    <input
+                      list="chefs-list-edit"
+                      className="w-full border rounded-xl px-4 py-3 bg-white"
+                      value={infoFormData.chef_chantier || ''}
+                      onChange={e => setInfoFormData({ ...infoFormData, chef_chantier: e.target.value })}
+                      placeholder="Chercher..."
+                    />
+                    <datalist id="chefs-list-edit">
+                      {monteurs
+                        .filter(m => [100, 101, 102, 103, 104, 157].includes(m.matricule))
+                        .map(m => <option key={m.matricule} value={m.nom_monteur} />)}
+                    </datalist>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Date Démarrage</label>
+                    <input type="date" required className="w-full border rounded-xl px-4 py-3"
+                      value={infoFormData.date_debut}
+                      onChange={e => setInfoFormData({ ...infoFormData, date_debut: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Date Fin Prévue</label>
+                    <input type="date" required className="w-full border rounded-xl px-4 py-3"
+                      value={infoFormData.date_fin}
+                      onChange={e => setInfoFormData({ ...infoFormData, date_fin: e.target.value })}
+                    />
+                  </div>
                 </div>
                 <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100">
                   <label className="text-sm font-bold text-gray-700">Documents AT/RC Validés</label>

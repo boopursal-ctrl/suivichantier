@@ -10,10 +10,18 @@ import {
     DragStartEvent,
     UniqueIdentifier,
     pointerWithin,
+    rectIntersection,
+    closestCenter,
+    closestCorners,
     PointerSensor,
+    KeyboardSensor,
     useSensor,
     useSensors
 } from '@dnd-kit/core';
+import {
+    sortableKeyboardCoordinates,
+    verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
 import {
     format,
     addDays,
@@ -77,7 +85,58 @@ const SidebarDroppable = ({ children }: { children: React.ReactNode }) => {
 
 // --- Components ---
 
-const DraggableChantier = ({ chantier, isOverlay }: DraggableChantierProps) => {
+const DateEditModal = ({ isOpen, onClose, onSave, chantier }: { isOpen: boolean, onClose: () => void, onSave: (start: string, end: string) => void, chantier: Chantier }) => {
+    const [start, setStart] = useState(chantier.date_debut);
+    const [end, setEnd] = useState(chantier.date_fin);
+
+    // Update state when chantier changes if modal is open (optional but good practice)
+    React.useEffect(() => {
+        setStart(chantier.date_debut);
+        setEnd(chantier.date_fin);
+    }, [chantier]);
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col pointer-events-auto">
+                <div className="flex justify-between items-center mb-4 border-b pb-2">
+                    <h3 className="font-bold text-lg text-gray-800">Modifier Dates</h3>
+                    <button onClick={onClose}><X size={20} className="text-gray-400 hover:text-gray-600" /></button>
+                </div>
+                <div className="space-y-4">
+                    <p className="font-bold text-slate-700">{chantier.nom_client} <span className="text-sm font-normal text-slate-500">({chantier.ref_chantier})</span></p>
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-1">Date Début</label>
+                        <input type="date" className="w-full border rounded-xl px-4 py-3 bg-gray-50" value={start} onChange={e => setStart(e.target.value)} />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-1">Date Fin</label>
+                        <input type="date" className="w-full border rounded-xl px-4 py-3 bg-gray-50" value={end} onChange={e => setEnd(e.target.value)} />
+                    </div>
+                    <button
+                        onClick={() => onSave(start, end)}
+                        className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-md transform active:scale-95"
+                    >
+                        Enregistrer
+                    </button>
+                    <p className="text-xs text-gray-400 text-center mt-2 italic">
+                        Cliquez sur Enregistrer pour valider les nouvelles dates.
+                    </p>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+interface DraggableChantierProps {
+    chantier: Chantier;
+    isOverlay?: boolean;
+    onEdit?: (c: Chantier) => void;
+    key?: string | number;
+}
+
+const DraggableChantier = ({ chantier, isOverlay, onEdit }: DraggableChantierProps) => {
     const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } = useDraggable({
         id: chantier.id_chantier,
         data: { chantier },
@@ -90,7 +149,7 @@ const DraggableChantier = ({ chantier, isOverlay }: DraggableChantierProps) => {
             className={cn(
                 "relative bg-gradient-to-br from-white via-slate-50 to-slate-100 group rounded-xl border-2 transition-all duration-200 overflow-hidden",
                 isDragging ? "opacity-20 scale-95" : "opacity-100 hover:shadow-2xl hover:border-indigo-400 hover:scale-[1.02]",
-                isOverlay ? "shadow-2xl ring-4 ring-indigo-400/50 rotate-3 scale-110 z-50 cursor-grabbing" : "shadow-md border-slate-300",
+                isOverlay ? "shadow-2xl ring-4 ring-indigo-400/50 z-50 cursor-grabbing" : "shadow-md border-slate-300",
                 "p-4"
             )}
         >
@@ -100,7 +159,18 @@ const DraggableChantier = ({ chantier, isOverlay }: DraggableChantierProps) => {
                 <div className="flex justify-between items-start">
                     <div className="flex-1">
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">{chantier.ref_chantier}</span>
-                        <h4 className="font-bold text-slate-900 text-base leading-tight mt-0.5">{chantier.nom_client}</h4>
+                        <div className="flex items-center gap-2">
+                            <h4 className="font-bold text-slate-900 text-base leading-tight mt-0.5">{chantier.nom_client}</h4>
+                            {onEdit && (
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); onEdit(chantier); }}
+                                    className="p-1 text-slate-300 hover:text-indigo-500 transition-colors"
+                                    title="Modifier les dates"
+                                >
+                                    <CalendarIcon className="w-3.5 h-3.5" />
+                                </button>
+                            )}
+                        </div>
                     </div>
 
                     <div
@@ -211,7 +281,7 @@ const ChantierTooltip = ({ chantier, affectations, monteurs, lignesCouts }: {
                 <div className="bg-slate-800/50 rounded-lg p-2.5 border border-slate-700/50 mb-3">
                     <div className="flex items-center gap-2 text-slate-400 text-xs mb-1">
                         <User className="w-3.5 h-3.5" />
-                        <span className="font-medium">Responsable</span>
+                        <span className="font-medium">Sous Chef de Chantier</span>
                     </div>
                     <p className="text-white font-semibold text-sm">{chantier.responsable_chantier}</p>
                 </div>
@@ -238,7 +308,8 @@ const ChantierTimelineBar = ({
     totalDays,
     affectations,
     monteurs,
-    lignesCouts
+    lignesCouts,
+    onEdit
 }: {
     chantier: Chantier,
     isStart: boolean,
@@ -246,7 +317,8 @@ const ChantierTimelineBar = ({
     totalDays: number,
     affectations: any[],
     monteurs: any[],
-    lignesCouts: any[]
+    lignesCouts: any[],
+    onEdit: (c: Chantier) => void
 }) => {
     const [showTooltip, setShowTooltip] = useState(false);
 
@@ -269,14 +341,18 @@ const ChantierTimelineBar = ({
                 animate={{ opacity: 1, scaleY: 1 }}
                 onMouseEnter={() => setShowTooltip(true)}
                 onMouseLeave={() => setShowTooltip(false)}
+                onClick={(e) => { e.stopPropagation(); onEdit(chantier); }}
                 className={cn(
-                    "absolute inset-x-0 top-10 h-14 shadow-lg border-y-2 border-white/30 backdrop-blur-sm z-10 cursor-pointer",
+                    "h-12 w-full shadow-md border-y-[1px] border-white/20 backdrop-blur-sm cursor-pointer overflow-hidden transition-all duration-200",
                     "bg-gradient-to-r",
                     gradient,
-                    "flex items-center px-3 overflow-hidden transition-all duration-200",
-                    "hover:shadow-2xl hover:z-30 hover:scale-[1.02]",
-                    isStart && "rounded-l-xl border-l-2",
-                    isEnd && "rounded-r-xl border-r-2"
+                    "flex items-center px-2",
+                    "hover:shadow-lg hover:brightness-110",
+                    isStart && "rounded-l-lg border-l-[1px]",
+                    isEnd && "rounded-r-lg border-r-[1px]",
+                    !isStart && "-ml-[1px] w-[calc(100%+1px)]",
+                    !isEnd && "-mr-[1px] w-[calc(100%+1px)]",
+                    showTooltip ? "z-50 relative brightness-110 shadow-xl ring-2 ring-white/30" : "z-10"
                 )}
             >
                 {isStart && (
@@ -301,11 +377,11 @@ const ChantierTimelineBar = ({
 
             {/* Tooltip - positioned outside calendar grid */}
             {showTooltip && isStart && (
-                <div className="absolute left-0 top-full mt-2 z-[100] pointer-events-none">
+                <div className="absolute left-0 top-[calc(100%+4px)] z-[100] pointer-events-none">
                     <motion.div
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.15 }}
+                        initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        transition={{ duration: 0.2, ease: "easeOut" }}
                     >
                         <ChantierTooltip
                             chantier={chantier}
@@ -320,7 +396,7 @@ const ChantierTimelineBar = ({
     );
 };
 
-const CalendarDay = ({ date, isToday, isWeekendDay }: { date: Date, isToday: boolean, isWeekendDay: boolean }) => {
+const CalendarDay = ({ date, isToday, isWeekendDay, children }: { date: Date, isToday: boolean, isWeekendDay: boolean, children?: React.ReactNode }) => {
     const dateStr = format(date, 'yyyy-MM-dd');
     const { setNodeRef, isOver } = useDroppable({
         id: dateStr,
@@ -330,21 +406,25 @@ const CalendarDay = ({ date, isToday, isWeekendDay }: { date: Date, isToday: boo
         <div
             ref={setNodeRef}
             className={cn(
-                "min-h-[120px] p-2 transition-all relative group flex flex-col",
+                "min-h-[140px] p-0 transition-all relative group flex flex-col",
                 "border-r border-b border-slate-200/60",
                 isOver ? "bg-gradient-to-br from-indigo-50 to-blue-50 ring-2 ring-inset ring-indigo-400 shadow-inner" : "bg-white",
                 isWeekendDay ? "bg-slate-50/80" : "",
                 isToday ? "bg-gradient-to-br from-blue-50 to-indigo-50" : ""
             )}
         >
-            <div className="flex justify-between items-center mb-1 relative z-20">
+            <div className="p-2 flex justify-between items-center relative z-20">
                 <span className={cn(
-                    "text-sm font-bold w-8 h-8 flex items-center justify-center rounded-full transition-all",
-                    isToday ? "bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/30 ring-2 ring-blue-200" : "text-slate-500 group-hover:text-slate-800",
+                    "text-sm font-bold w-7 h-7 flex items-center justify-center rounded-full transition-all",
+                    isToday ? "bg-blue-600 text-white shadow-lg" : "text-slate-400",
                     isOver ? "text-indigo-700 bg-indigo-100" : ""
                 )}>
                     {format(date, 'd')}
                 </span>
+            </div>
+
+            <div className="flex-1 relative">
+                {children}
             </div>
         </div>
     );
@@ -357,6 +437,51 @@ const Planning = () => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
     const [showSidebar, setShowSidebar] = useState(false);
+
+    // Edit Modal State
+    const [editingChantier, setEditingChantier] = useState<Chantier | null>(null);
+
+    // Helper to add working days (excluding Sat/Sun)
+    const addWorkingDays = (startDate: Date, duration: number): Date => {
+        let temp = new Date(startDate);
+        if (duration <= 0) return temp;
+        let daysAdded = isWeekend(temp) ? 0 : 1;
+        while (daysAdded < duration) {
+            temp = addDays(temp, 1);
+            if (!isWeekend(temp)) daysAdded++;
+        }
+        return temp;
+    };
+
+    // Helper to count working days between two dates
+    const countWorkingDays = (start: Date, end: Date): number => {
+        try {
+            const days = eachDayOfInterval({ start, end });
+            return days.filter(d => !isWeekend(d)).length;
+        } catch (e) { return 0; }
+    };
+
+    const handleSaveDates = async (newStart: string, newEnd: string) => {
+        if (!editingChantier) return;
+        try {
+            const start = parseISO(newStart);
+            const end = parseISO(newEnd);
+            // Count only weekdays for the internal duration
+            const newDuration = countWorkingDays(start, end);
+
+            await updateChantier({
+                ...editingChantier,
+                date_debut: newStart,
+                date_fin: newEnd,
+                duree_prevue: Math.max(1, newDuration),
+                statut: (newStart && newEnd) ? 'actif' : editingChantier.statut
+            });
+            toast.success("Planning mis à jour !");
+            setEditingChantier(null);
+        } catch (e) {
+            toast.error("Erreur lors de la mise à jour");
+        }
+    };
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -380,7 +505,7 @@ const Planning = () => {
         [calendarStart, calendarEnd]);
 
     const activeChantiers = useMemo(() => {
-        return chantiers.filter(c => {
+        const filtered = chantiers.filter(c => {
             if (c.statut === 'en_instance' || !c.date_debut || !c.date_fin) return false;
             try {
                 const start = parseISO(c.date_debut);
@@ -390,6 +515,32 @@ const Planning = () => {
                     (isBefore(start, calendarStart) && isAfter(end, calendarEnd));
             } catch (e) { return false; }
         });
+
+        // Compute lanes with stable sort and normalized dates
+        const sorted = [...filtered].map(c => ({
+            ...c,
+            // Normalize dates to YYYY-MM-DD strings for consistent comparison
+            _startStr: format(parseISO(c.date_debut), 'yyyy-MM-dd'),
+            _endStr: format(parseISO(c.date_fin), 'yyyy-MM-dd')
+        })).sort((a, b) =>
+            a._startStr.localeCompare(b._startStr) ||
+            a.id_chantier.localeCompare(b.id_chantier)
+        );
+
+        const lanes: { [id: string]: number } = {};
+        const laneEnds: { [lane: number]: string } = {};
+
+        sorted.forEach(c => {
+            let laneIndex = 0;
+            // Find first available lane where the previous project ends before this one starts
+            while (laneEnds[laneIndex] && laneEnds[laneIndex] >= c._startStr) {
+                laneIndex++;
+            }
+            lanes[c.id_chantier] = laneIndex;
+            laneEnds[laneIndex] = c._endStr;
+        });
+
+        return { list: filtered, lanes };
     }, [chantiers, calendarStart, calendarEnd]);
 
     const handleDragStart = (event: DragStartEvent) => {
@@ -427,7 +578,8 @@ const Planning = () => {
 
         const newStartDate = parseISO(targetId);
         const duration = chantier.duree_prevue || 1;
-        const newEndDate = addDays(newStartDate, Math.max(0, duration - 1));
+        // Calculate end date by skipping weekends
+        const newEndDate = addWorkingDays(newStartDate, duration);
 
         const validationErrors: string[] = [];
         const chantierAssignments = affectations.filter(a => a.id_chantier === chantierId);
@@ -496,6 +648,7 @@ const Planning = () => {
         enAttente: backlogChantiers.length,
         enCours: chantiers.filter(c => c.statut === 'actif').length,
     }), [backlogChantiers, chantiers]);
+
 
     return (
         <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
@@ -590,81 +743,68 @@ const Planning = () => {
                             </div>
                             <p className="text-xs text-slate-400 font-medium">Glissez vers le calendrier pour planifier</p>
                         </div>
-
                         <SidebarDroppable>
                             {backlogChantiers.map(chantier => (
-                                <DraggableChantier key={chantier.id_chantier} chantier={chantier} />
+                                <DraggableChantier key={chantier.id_chantier} chantier={chantier} onEdit={setEditingChantier} />
                             ))}
-                            {backlogChantiers.length === 0 && (
-                                <div className="flex flex-col items-center justify-center h-60 text-slate-500">
-                                    <CheckCircle2 className="w-12 h-12 mb-3 opacity-20" />
-                                    <p className="text-sm italic">Aucun dossier en attente</p>
-                                </div>
-                            )}
                         </SidebarDroppable>
-
-                        <div className="p-4 bg-slate-950 border-t-2 border-slate-800 text-center">
-                            <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Zone de Stockage</p>
-                        </div>
                     </div>
 
-                    {/* Calendar */}
-                    <div className="flex-1 bg-white rounded-2xl shadow-2xl border-2 border-slate-300 overflow-hidden flex flex-col">
-
-                        <div className="grid grid-cols-7 border-b-2 border-slate-300 bg-gradient-to-r from-slate-100 via-slate-50 to-slate-100">
-                            {['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'].map((day) => (
-                                <div key={day} className="py-4 text-center text-xs font-bold text-slate-700 uppercase tracking-widest border-r border-slate-200 last:border-r-0">
-                                    <span className="hidden md:inline">{day}</span>
-                                    <span className="md:hidden">{day.substring(0, 3)}</span>
-                                </div>
-                            ))}
-                        </div>
-
-                        <div className="flex-1 overflow-y-auto bg-slate-50">
+                    <div id="calendar-view" className="flex-1 bg-white rounded-2xl shadow-2xl border-2 border-slate-200 overflow-hidden flex flex-col min-w-0">
+                        <div className="flex-1 overflow-auto bg-slate-50 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent">
                             <div className="grid grid-cols-7 bg-slate-200 gap-px">
                                 {calendarDays.map((day, dayIndex) => {
                                     const isCurrentMonth = day.getMonth() === currentDate.getMonth();
+                                    const dayStr = format(day, 'yyyy-MM-dd');
 
-                                    const overlappingChantiers = activeChantiers.filter(c => {
-                                        try {
-                                            const start = parseISO(c.date_debut);
-                                            const end = parseISO(c.date_fin);
-                                            return isWithinInterval(day, { start, end }) || isSameDay(day, start) || isSameDay(day, end);
-                                        } catch { return false; }
-                                    });
-
-                                    if (!isCurrentMonth) {
-                                        return <div key={dayIndex} className="bg-slate-100/50 min-h-[120px] border-r border-b border-slate-200" />;
-                                    }
+                                    const overlappingChantiers = activeChantiers.list.filter(c => {
+                                        const isWeekendDay = isWeekend(day);
+                                        return !isWeekendDay && dayStr >= c.date_debut && dayStr <= c.date_fin;
+                                    }).sort((a, b) => activeChantiers.lanes[a.id_chantier] - activeChantiers.lanes[b.id_chantier]);
 
                                     return (
-                                        <div key={day.toString()} className="relative">
+                                        <div
+                                            key={dayStr}
+                                            className={cn(
+                                                "relative transition-all duration-200",
+                                                !isCurrentMonth && "opacity-40",
+                                                "hover:z-30" // Elevation on hover to ensure tooltip won't be cut by neighboring cell
+                                            )}
+                                        >
                                             <CalendarDay
                                                 date={day}
                                                 isToday={isSameDay(day, new Date())}
                                                 isWeekendDay={isWeekend(day)}
-                                            />
+                                            >
+                                                <div className="absolute inset-x-0 top-0 bottom-0 pointer-events-none z-10">
+                                                    {overlappingChantiers.map((chantier) => {
+                                                        const isStart = chantier.date_debut === dayStr;
+                                                        const start = parseISO(chantier.date_debut);
+                                                        const end = parseISO(chantier.date_fin);
+                                                        const workingDaysCount = countWorkingDays(start, end);
+                                                        const lane = activeChantiers.lanes[chantier.id_chantier];
 
-                                            {overlappingChantiers.map((chantier) => {
-                                                const start = parseISO(chantier.date_debut);
-                                                const end = parseISO(chantier.date_fin);
-                                                const totalDays = differenceInDays(end, start) + 1;
-                                                const isStart = isSameDay(day, start);
-                                                const isEnd = isSameDay(day, end);
-
-                                                return (
-                                                    <ChantierTimelineBar
-                                                        key={`${chantier.id_chantier}-${dayIndex}`}
-                                                        chantier={chantier}
-                                                        isStart={isStart}
-                                                        isEnd={isEnd}
-                                                        totalDays={totalDays}
-                                                        affectations={affectations}
-                                                        monteurs={monteurs}
-                                                        lignesCouts={lignesCouts}
-                                                    />
-                                                );
-                                            })}
+                                                        return (
+                                                            <div
+                                                                key={chantier.id_chantier}
+                                                                className="pointer-events-auto h-12 w-full absolute left-0 right-0 px-0.5"
+                                                                style={{ top: `${lane * 52}px` }}
+                                                            >
+                                                                <ChantierTimelineBar
+                                                                    chantier={chantier}
+                                                                    isStart={isStart}
+                                                                    isEnd={chantier.date_fin === dayStr}
+                                                                    totalDays={workingDaysCount}
+                                                                    affectations={affectations}
+                                                                    monteurs={monteurs}
+                                                                    lignesCouts={lignesCouts}
+                                                                    onEdit={setEditingChantier}
+                                                                />
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </CalendarDay>
                                         </div>
                                     );
                                 })}
@@ -672,7 +812,6 @@ const Planning = () => {
                         </div>
                     </div>
                 </div>
-
             </div>
 
             <DragOverlay dropAnimation={{
@@ -680,11 +819,21 @@ const Planning = () => {
                 easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
             }}>
                 {activeChantier ? (
-                    <div className="transform -rotate-3 scale-110">
+                    <div className="z-50 shadow-2xl">
                         <DraggableChantier chantier={activeChantier} isOverlay />
                     </div>
                 ) : null}
             </DragOverlay>
+
+            {/* EDIT MODAL */}
+            {editingChantier && (
+                <DateEditModal
+                    isOpen={!!editingChantier}
+                    chantier={editingChantier}
+                    onClose={() => setEditingChantier(null)}
+                    onSave={handleSaveDates}
+                />
+            )}
         </DndContext>
     );
 };

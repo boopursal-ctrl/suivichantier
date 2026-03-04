@@ -393,7 +393,7 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
                     <tr>
                       <th className="px-6 py-4">Réf</th>
                       <th className="px-6 py-4">Client</th>
-                      <th className="px-6 py-4">Responsable</th>
+                      <th className="px-6 py-4">Sous Chef de Chantier</th>
                       <th className="px-6 py-4">Budget</th>
                       <th className="px-6 py-4 text-right">Action</th>
                     </tr>
@@ -493,7 +493,7 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">Responsable Projet</label>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Sous Chef de Chantier</label>
                     <input
                       list="responsables-list"
                       className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-white focus:border-red-500 outline-none"
@@ -502,7 +502,9 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
                       placeholder="Chercher..."
                     />
                     <datalist id="responsables-list">
-                      {monteurs.map(m => <option key={m.matricule} value={m.nom_monteur} />)}
+                      {monteurs
+                        .filter(m => [100, 101, 102, 103, 104, 157].includes(m.matricule))
+                        .map(m => <option key={m.matricule} value={m.nom_monteur} />)}
                     </datalist>
                   </div>
                   <div>
@@ -516,7 +518,7 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
                     />
                     <datalist id="chefs-list">
                       {monteurs
-                        .filter(m => m.role_monteur === 'CHEF_CHANTIER' || m.role_monteur === 'OUVRIER') // Expanding to all potential chiefs as per user request to show 'everyone'
+                        .filter(m => [100, 101, 102, 103, 104, 157].includes(m.matricule))
                         .map(m => <option key={m.matricule} value={m.nom_monteur} />)}
                     </datalist>
                   </div>

@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { LayoutDashboard, HardHat, Users, Building2, BarChart3, Settings, Menu, X, LogOut, Package, Shield, Briefcase, Calendar, ClipboardCheck, FileText } from 'lucide-react';
+import { LayoutDashboard, HardHat, Users, Building2, BarChart3, Settings, Menu, X, LogOut, Package, Shield, Briefcase, Calendar, ClipboardCheck, FileText, Wallet } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { AppModule } from '../types';
 
@@ -39,6 +39,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activePage, onNavigate }) => 
     { id: 'pointage_mensuel', label: 'Pointage Mensuel', icon: Calendar, module: 'pointage_mensuel' as AppModule },
     { id: 'matrice', label: 'Matrice Ressources', icon: Briefcase, module: 'matrice' as AppModule },
     { id: 'contrats', label: 'Contrats', icon: FileText, module: 'contrats' as AppModule },
+    { id: 'avances', label: 'Avances', icon: Wallet, module: 'avances' as AppModule },
     { id: 'chantiers', label: 'Chantiers', icon: HardHat, module: 'chantiers' as AppModule },
     { id: 'stock', label: 'Stock & Matériel', icon: Package, module: 'stock' as AppModule },
     { id: 'clients', label: 'Clients', icon: Building2, module: 'clients' as AppModule },
