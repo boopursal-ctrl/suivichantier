@@ -500,44 +500,39 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     users,
     addUser: async (u) => {
       try {
-        console.log('👤 addUser: Attempting to create Auth User first...');
+        console.log('👤 addUser: Création via Admin API...');
 
-        // Top of file import - will handle this separately or use inline require for now to avoid extensive changes, 
-        // actually I'll use the imported constants since I just exported them.
-        // But I need to update imports at the top of the file separately or just use import()
+        const { supabaseAdmin } = await import('../services/supabaseClient');
 
-        // 1. Create a temporary client to sign up the new user WITHOUT logging out the admin
-        // We use in-memory storage so it doesn't touch localStorage
-        const { supabaseUrl, supabaseKey } = await import('../services/supabaseClient');
+        if (!supabaseAdmin) {
+          throw new Error(
+            'La clé VITE_SUPABASE_SERVICE_ROLE_KEY est manquante dans le fichier .env. ' +
+            'Récupérez-la depuis : Supabase Dashboard → Settings → API → service_role.'
+          );
+        }
 
-        const tempClient = (await import('@supabase/supabase-js')).createClient(supabaseUrl, supabaseKey, {
-          auth: {
-            persistSession: false, // Don't save to localStorage
-            autoRefreshToken: false,
-            detectSessionInUrl: false
-          }
-        });
-
-        const { data: authData, error: authError } = await tempClient.auth.signUp({
+        // 1. Créer l'utilisateur via Admin API (pas de rate-limit, email confirmé auto)
+        const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
           email: u.email,
-          password: u.password || '12345678', // Default password if not provided
+          password: u.password || '12345678',
+          email_confirm: true, // Confirme l'email automatiquement
         });
 
         if (authError) {
-          console.error('❌ Auth Creation Error:', authError);
-          throw new Error(`Authentication Error: ${authError.message}`);
+          console.error('❌ Admin createUser Error:', authError);
+          throw new Error(`Erreur création compte: ${authError.message}`);
         }
 
         if (!authData.user) {
-          throw new Error("User created but no ID returned.");
+          throw new Error('Utilisateur créé mais aucun ID retourné.');
         }
 
         const newUserId = authData.user.id;
-        console.log('✅ Auth User created with ID:', newUserId);
+        console.log('✅ Auth User créé avec ID:', newUserId);
 
-        // 2. Now insert the profile using the REAL User ID
+        // 2. Insérer le profil avec l'ID Auth réel
         const profileData = {
-          id: newUserId, // Use the real Auth ID
+          id: newUserId,
           email: u.email,
           name: u.name,
           role: u.role,
@@ -553,7 +548,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         if (error) {
           console.error('❌ Profile Insertion Error:', error);
-          // If profile fails, we might want to clean up the auth user, but usually we can't delete from client.
           throw error;
         }
 
@@ -567,10 +561,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             allowedModules: data.allowed_modules
           };
           setUsers(prev => [...prev, mapped]);
-          console.log('✅ User & Profile added successfully');
+          console.log('✅ Utilisateur & Profil créés avec succès');
         }
       } catch (error) {
-        console.error('❌ Exception adding user:', error);
+        console.error('❌ Exception addUser:', error);
         throw error;
       }
     },
