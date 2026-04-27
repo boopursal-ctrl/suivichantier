@@ -32,7 +32,6 @@ import {
 } from 'lucide-react';
 import { cn, formatDate } from '../utils';
 import { toast } from 'sonner';
-import { supabase } from '../services/supabaseClient';
 import { mysqlService } from '../services/mysqlService';
 
 interface PointageData {
@@ -95,16 +94,13 @@ const PointageMensuel = () => {
             const mois = currentDate.getMonth() + 1;
             const annee = currentDate.getFullYear();
 
-            const { data, error } = await supabase
-                .from('pointages_mensuels')
-                .select('*')
-                .eq('id_chantier', selectedChantier)
-                .eq('mois', mois)
-                .eq('annee', annee);
+            const data = await mysqlService.query('get_pointages', {
+                id_chantier: selectedChantier,
+                mois: mois.toString(),
+                annee: annee.toString()
+            });
 
-            if (error) throw error;
-
-            if (data) {
+            if (Array.isArray(data)) {
                 const newPointages: PointageData = {};
                 const newSalaires: Record<string, number> = {};
                 const newAvances: Record<string, number> = {};
@@ -114,7 +110,6 @@ const PointageMensuel = () => {
                 const newGasoil: Record<string, number> = {};
 
                 data.forEach((p: any) => {
-                    // Parse jours_travailles if string or object
                     let jours = p.jours_travailles;
                     if (typeof jours === 'string') {
                         try { jours = JSON.parse(jours); } catch (e) { jours = {}; }
@@ -379,23 +374,13 @@ const PointageMensuel = () => {
             const annee = currentDate.getFullYear();
             const updates = [];
 
-            // Préparer les données pour chaque monteur affiché
             for (const m of monteursChantier) {
                 const matricule = m.matricule;
-
-                // Calculs sécurisés avec typage strict
                 const jours_data = pointages[matricule] || {};
                 const total_jours = Number(getMonthTotal(matricule));
                 const salaire_journalier = Number(salaires[matricule] || 120);
                 const total_salaire = (total_jours * salaire_journalier);
-
-                const frais_t = Number(fraisTransport[matricule] || 0);
-                const frais_r = Number(fraisRepas[matricule] || 0);
-                const frais_l = Number(fraisLoyer[matricule] || 0);
-                const frais_g = Number(fraisGasoil[matricule] || 0);
                 const montant_avances = Number(avances[matricule] || 0);
-
-                const total_charges = frais_t + frais_r + frais_l + frais_g;
                 const net_a_payer = total_salaire - montant_avances;
 
                 updates.push({
@@ -409,32 +394,16 @@ const PointageMensuel = () => {
                     total_jours: total_jours,
                     total_salaire: total_salaire,
                     avances: montant_avances,
-                    frais_transport: frais_t,
-                    frais_repas: frais_r,
-                    frais_loyer: frais_l,
-                    frais_gasoil: frais_g,
-                    total_charges: total_charges,
-                    net_a_payer: net_a_payer,
-                    updated_at: new Date().toISOString()
+                    net_a_payer: net_a_payer
                 });
             }
 
-            // 1. Sauvegarde Supabase (Backup)
-            const { error } = await supabase
-                .from('pointages_mensuels')
-                .upsert(updates, { onConflict: 'id_chantier,matricule,mois,annee' });
-
-            if (error) throw error;
-
-            // 2. Sauvegarde MySQL (Principal pour les Avances)
-            try {
-                await mysqlService.query('save_pointages', {}, updates);
-            } catch (mysqlError) {
-                console.error('Erreur sync MySQL:', mysqlError);
-                toast.warning("Pointage sauvé sur Supabase, mais erreur serveur MySQL.");
+            const response = await mysqlService.query('save_pointages', {}, updates);
+            if (response.status === 'success') {
+                toast.success("Pointage enregistré avec succès !");
+            } else {
+                throw new Error(response.message || "Erreur MySQL");
             }
-
-            toast.success("Pointage enregistré avec succès !");
 
         } catch (error) {
             console.error('Erreur sauvegarde:', error);

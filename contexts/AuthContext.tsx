@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { toast } from 'sonner';
 import { User, AppModule, UserRole } from '../types';
-import { supabase } from '../services/supabaseClient';
+
+import { mysqlService } from '../services/mysqlService';
 
 interface AuthContextType {
   user: User | null;
@@ -27,9 +28,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // 1. Vérifier et restaurer la session au démarrage
   useEffect(() => {
     const initializeAuth = async () => {
-      debug('Initializing auth...');
+      debug('Initializing auth (MySQL Only Mode)...');
 
-      // A. Vérifier localStorage d'abord pour un chargement rapide
+      // Restaurer depuis localStorage
       const storedUser = localStorage.getItem('user');
       const storedAuthTime = localStorage.getItem('auth_time');
 
@@ -47,187 +48,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           localStorage.removeItem('auth_time');
         }
       }
-
-      // B. Vérifier la session Supabase
-      try {
-        debug('Checking Supabase session...');
-        const { data: { session }, error } = await supabase.auth.getSession();
-
-        if (error) {
-          debug('Supabase session error:', error.message);
-        }
-
-        if (session?.user) {
-          debug('Supabase session found', {
-            email: session.user.email,
-            userId: session.user.id
-          });
-
-          // Attendre un peu pour laisser le temps aux listeners
-          setTimeout(async () => {
-            await fetchProfile(session.user.id, session.user.email!);
-          }, 100);
-        } else {
-          debug('No Supabase session found');
-          setLoading(false);
-        }
-      } catch (error) {
-        debug('Error checking session:', error);
-        setLoading(false);
-      }
+      setLoading(false);
     };
 
     initializeAuth();
-
-    // Écouter les changements d'authentification
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        debug(`Auth state changed: ${event}`, {
-          hasSession: !!session,
-          userEmail: session?.user?.email
-        });
-
-        switch (event) {
-          case 'SIGNED_IN':
-            if (session?.user) {
-              debug('Processing SIGNED_IN event', {
-                email: session.user.email,
-                userId: session.user.id
-              });
-
-              // Petit délai pour éviter les conflits
-              setTimeout(async () => {
-                await fetchProfile(session.user.id, session.user.email!);
-              }, 200);
-            }
-            break;
-
-          case 'SIGNED_OUT':
-            debug('Processing SIGNED_OUT event');
-            setUser(null);
-            setLoading(false);
-            localStorage.removeItem('user');
-            localStorage.removeItem('auth_time');
-            break;
-
-          case 'TOKEN_REFRESHED':
-            debug('Token refreshed');
-            if (session?.user) {
-              localStorage.setItem('auth_time', Date.now().toString());
-            }
-            break;
-        }
-      }
-    );
-
-    return () => {
-      debug('Cleaning up auth listener');
-      subscription.unsubscribe();
-    };
   }, []);
 
-  const fetchProfile = async (userId: string, email: string) => {
-    debug('📋 Fetching profile for user', { userId, email });
-
-    try {
-      // 1. Récupérer le profil
-      let { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      debug('Profile query result', { hasData: !!data, error });
-
-      // 2. Auto-provisioning si le profil n'existe pas
-      if (!data && (error?.code === 'PGRST116' || !error)) {
-        debug('🆕 Profile not found, auto-creating...');
-
-        const newProfile = {
-          id: userId,
-          email: email,
-          name: email.split('@')[0],
-          role: 'ADMIN' as UserRole,
-          is_active: true,
-          allowed_modules: ['dashboard', 'chantiers', 'stock', 'clients', 'monteurs', 'rapports', 'admin']
-        };
-
-        const { data: createdProfile, error: createError } = await supabase
-          .from('profiles')
-          .insert([newProfile])
-          .select('*')
-          .single();
-
-        if (createError) {
-          debug('❌ Error creating profile:', createError);
-          throw createError;
-        }
-
-        data = createdProfile;
-        debug('✅ Profile created successfully');
-      }
-
-      // 3. Traiter les données du profil
-      if (data) {
-        const appUser: User = {
-          id: data.id,
-          email: data.email || email,
-          name: data.name || email.split('@')[0],
-          role: (data.role as UserRole) || 'USER',
-          isActive: data.is_active ?? true,
-          allowedModules: data.allowed_modules || ['dashboard']
-        };
-
-        debug('👤 Profile loaded', {
-          email: appUser.email,
-          role: appUser.role,
-          isActive: appUser.isActive,
-          modules: appUser.allowedModules
-        });
-
-        // 4. Vérifier si le compte est actif
-        if (appUser.isActive) {
-          // 5. Mettre à jour l'état React
-          setUser(appUser);
-          debug('✅ User set in React state');
-
-          // 6. Stocker dans localStorage
-          localStorage.setItem('user', JSON.stringify(appUser));
-          localStorage.setItem('auth_time', Date.now().toString());
-          debug('💾 User saved to localStorage');
-
-          // 7. Récupérer et stocker les tokens Supabase
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session) {
-            localStorage.setItem('supabase.auth.token', JSON.stringify({
-              access_token: session.access_token,
-              refresh_token: session.refresh_token,
-              expires_at: session.expires_at
-            }));
-            debug('🔑 Tokens saved to localStorage');
-          }
-        } else {
-          debug('❌ Account is inactive - logging out');
-          toast.error("Votre compte a été désactivé par un administrateur.");
-          await supabase.auth.signOut();
-          setUser(null);
-          localStorage.removeItem('user');
-          localStorage.removeItem('auth_time');
-          localStorage.removeItem('supabase.auth.token');
-        }
-      } else {
-        debug('❌ No profile data found');
-      }
-    } catch (error: any) {
-      debug('❌ Error in fetchProfile:', {
-        message: error.message,
-        code: error.code,
-        details: error.details
-      });
-    } finally {
-      setLoading(false);
-      debug('🏁 Loading set to false');
-    }
+  const logout = async () => {
+    debug('🚪 Logging out (MySQL mode)...');
+    setUser(null);
+    localStorage.clear();
+    debug('✅ Logout successful');
+    window.location.href = '/';
   };
 
   const login = async (email: string, pass: string): Promise<{ success: boolean; message?: string }> => {
@@ -238,128 +70,42 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const cleanEmail = email.trim().toLowerCase();
       const cleanPass = pass.trim();
 
-      const { data, error } = await supabase.auth.signInWithPassword({
+      // --- AUTHENTIFICATION MYSQL (Heberjahiz) ---
+      debug('Attempting MySQL authentication...');
+      const mysqlResponse = await mysqlService.query('login', {}, {
         email: cleanEmail,
-        password: cleanPass,
+        password: cleanPass
       });
 
-      if (error) {
-        debug('❌ Login error:', error.message);
-
-        // --- EMERGENCY BYPASS FOR ADMIN/DEV ---
-        // If normal login fails, check if the user exists in 'profiles' and allow a master password
-        if (error.message === 'Invalid login credentials' || error.message.includes('Email not confirmed')) {
-          debug('⚠️ Attempting Emergency Bypass...');
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('email', cleanEmail)
-            .single();
-
-          if (profile && cleanPass === 'adm3f2026') {
-            debug('🔓 Emergency Bypass SUCCESSFUL');
-            const mockUser: User = {
-              id: profile.id,
-              email: profile.email,
-              name: profile.name || profile.email.split('@')[0],
-              role: profile.role || 'USER',
-              isActive: profile.is_active ?? true,
-              allowedModules: profile.allowed_modules || ['dashboard']
-            };
-            setUser(mockUser);
-            localStorage.setItem('user', JSON.stringify(mockUser));
-            localStorage.setItem('auth_time', Date.now().toString());
-            return { success: true, message: 'Connexion réussie (Mode Secours)' };
-          }
-        }
-        // ---------------------------------------
-
-        // --- WORKAROUND: Bypass Email Confirmation for Demo/Dev ---
-        if (error.message.includes('Email not confirmed')) {
-          debug('⚠️ Email not confirmed - Attempting DEMO login bypass...');
-
-          // Try to fetch profile to get real role/name
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('email', cleanEmail)
-            .single();
-
-          const mockUser: User = {
-            id: profile?.id || 'demo-user-id',
-            email: cleanEmail,
-            name: profile?.name || cleanEmail.split('@')[0],
-            role: (profile?.role as UserRole) || 'USER',
-            isActive: true,
-            allowedModules: profile?.allowed_modules || ['dashboard', 'chantiers', 'stock']
-          };
-
-          debug('🔓 Bypass successful, logging in as:', mockUser);
-          setUser(mockUser);
-          localStorage.setItem('user', JSON.stringify(mockUser));
-          localStorage.setItem('auth_time', Date.now().toString());
-
-          // We can't save a real Supabase token, but the app relies on 'user' state mainly
-          return { success: true, message: 'Connexion (Mode Démo - Email non vérifié)' };
-        }
-        // -------------------------------------------------------------
-
-        return {
-          success: false,
-          message: error.message === 'Invalid login credentials'
-            ? 'Email ou mot de passe incorrect. Essayez le mot de passe de secours si besoin.'
-            : error.message
+      if (mysqlResponse.status === 'success' && mysqlResponse.user) {
+        debug('✅ MySQL Login successful');
+        const mysqlUser: User = {
+          id: mysqlResponse.user.id.toString(),
+          email: mysqlResponse.user.email,
+          name: mysqlResponse.user.name,
+          role: mysqlResponse.user.role,
+          isActive: true,
+          allowedModules: mysqlResponse.user.allowed_modules || ['dashboard']
+        };
+        setUser(mysqlUser);
+        localStorage.setItem('user', JSON.stringify(mysqlUser));
+        localStorage.setItem('auth_time', Date.now().toString());
+        setLoading(false);
+        return { success: true };
+      } else {
+        return { 
+          success: false, 
+          message: mysqlResponse.message || "Email ou mot de passe incorrect (MySQL)" 
         };
       }
-
-      if (data.user && data.session) {
-        debug('✅ Login successful, waiting for profile...');
-
-        // Attendre que le profil soit chargé
-        let attempts = 0;
-        const maxAttempts = 10;
-
-        return new Promise((resolve) => {
-          const checkInterval = setInterval(() => {
-            attempts++;
-            const currentUser = localStorage.getItem('user');
-
-            if (currentUser) {
-              debug('✅ User found in localStorage after login');
-              clearInterval(checkInterval);
-              resolve({ success: true });
-            } else if (attempts >= maxAttempts) {
-              debug('❌ Timeout waiting for user profile');
-              clearInterval(checkInterval);
-              resolve({ success: false, message: 'Timeout de chargement du profil' });
-            } else {
-              debug(`⏳ Waiting for profile... attempt ${attempts}/${maxAttempts}`);
-            }
-          }, 500);
-        });
-      }
-
-      return { success: false, message: 'Erreur inconnue' };
     } catch (error: any) {
-      debug('❌ Login exception:', error);
-      return { success: false, message: error.message || 'Erreur de connexion' };
+      debug('❌ MySQL Login exception:', error);
+      return { 
+        success: false, 
+        message: "Erreur de connexion au serveur MySQL (Heberjahiz). Vérifiez votre connexion internet ou le fichier connect.php." 
+      };
     } finally {
       setLoading(false);
-    }
-  };
-
-  const logout = async () => {
-    debug('🚪 Logging out...');
-    try {
-      await supabase.auth.signOut();
-      setUser(null);
-      localStorage.clear();
-      debug('✅ Logout successful');
-
-      // Recharger la page pour nettoyer tout état React
-      window.location.href = '/';
-    } catch (error) {
-      debug('❌ Logout error:', error);
     }
   };
 

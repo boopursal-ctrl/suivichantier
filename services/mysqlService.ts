@@ -27,10 +27,18 @@ export const mysqlService = {
             }
 
             try {
-                return JSON.parse(text);
-            } catch (e) {
+                const result = JSON.parse(text);
+                
+                // On retourne TOUJOURS le résultat JSON, qu'il soit 'success' ou 'error'
+                // Cela permet à l'application de lire `result.message` (ex. "Identifiants incorrects")
+                if (result && result.status === "error" && action !== 'login') {
+                    console.error(`❌ API Error [${action}]:`, result.message);
+                }
+                
+                return result;
+            } catch (e: any) {
                 console.error("❌ Format JSON invalide. Réponse brute :", text);
-                throw new Error("Le serveur n'a pas renvoyé de JSON valide.");
+                throw new Error("Erreur serveur : format invalide.");
             }
         } catch (error) {
             console.error("❌ MySQL API Error:", error);

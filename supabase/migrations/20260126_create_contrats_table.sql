@@ -70,7 +70,7 @@ CREATE TRIGGER trigger_update_contrats_updated_at
 -- Fonction pour clôturer automatiquement les contrats actifs d'un monteur
 CREATE OR REPLACE FUNCTION close_active_contracts(
     p_matricule INTEGER,
-    p_date_fin DATE,
+    p_date_fin DATE,10
     p_motif TEXT,
     p_closed_by TEXT
 )

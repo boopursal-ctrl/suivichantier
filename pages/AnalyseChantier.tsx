@@ -10,7 +10,6 @@ import {
     Briefcase, History, Trash2, Paperclip, Upload, Download
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { supabase } from '../services/supabaseClient';
 import { mysqlService } from '../services/mysqlService';
 
 interface AnalyseChantierPageProps {
@@ -55,6 +54,8 @@ const AnalyseChantierPage: React.FC<AnalyseChantierPageProps> = ({ chantierId, o
 
     const chantier = chantiers.find(c => c.id_chantier === chantierId);
 
+    const [hasCleaned, setHasCleaned] = useState(false);
+    
     // Charger l'analyse existante
     useEffect(() => {
         loadAnalyse();
@@ -63,64 +64,36 @@ const AnalyseChantierPage: React.FC<AnalyseChantierPageProps> = ({ chantierId, o
     const loadAnalyse = async () => {
         try {
             setLoading(true);
+            const data = await mysqlService.query('get_analyses', { id_chantier: chantierId });
+            console.log("📥 Données reçues:", data);
 
-            // 1. Tenter de charger depuis MySQL (Heberjahiz)
-            try {
-                const data = await mysqlService.query('get_analyses', { id_chantier: chantierId });
-                if (data && data.id_analyse) {
-                    setAnalyse(data);
-
-                    // Charger les primes associées depuis MySQL
-                    const primesData = await mysqlService.query('get_primes', { id_analyse: data.id_analyse });
-
-                    if (Array.isArray(primesData)) {
-                        console.log("📊 STRUCTURE DES PRIMES MYSQL :");
-                        console.table(primesData); // Affiche un beau tableau dans la console F12
-
-                        setPrimes(primesData.map(p => {
-                            // On cherche l'ID partout où il peut être
-                            const finalId = p.id_prime || p.id || p.ID || `${p.matricule}-${p.nom_monteur}`;
-                            return {
-                                ...p,
-                                id_prime: finalId
-                            };
-                        }));
-                    }
-                    return; // Succès MySQL
+            // Vérification sur id_chantier (string non vide) et pas id_analyse (peut être 0 = falsy)
+            if (data && typeof data === 'object' && !Array.isArray(data) && data.id_chantier) {
+                console.log('✅ [loadAnalyse] Analyse trouvée en MySQL:', data);
+                setAnalyse(data);
+                // Charger les primes avec l'id_chantier en fallback si id_analyse = 0
+                const primeParams = data.id_analyse
+                    ? { id_analyse: String(data.id_analyse) }
+                    : { id_chantier: chantierId };
+                const primesData = await mysqlService.query('get_primes', primeParams);
+                if (Array.isArray(primesData)) {
+                    setPrimes(primesData.map(p => ({
+                        ...p,
+                        id_prime: p.id_prime || p.id || `${p.matricule}-${p.nom_monteur}`
+                    })));
                 }
-            } catch (mysqlError) {
-                console.warn('⚠️ MySQL non disponible, tentative Supabase/Local');
-            }
-
-            // 2. Repli Supabase (Anciennes données ou secours)
-            try {
-                const { data: analyseData, error: analyseError } = await supabase
-                    .from('site_analyses')
-                    .select('*')
-                    .eq('id_chantier', chantierId)
-                    .order('created_at', { ascending: false })
-                    .maybeSingle();
-
-                if (!analyseError && analyseData) {
-                    setAnalyse(analyseData);
-                    const { data: primesData, error: primesError } = await supabase
-                        .from('site_primes')
-                        .select('*')
-                        .eq('id_analyse', analyseData.id_analyse);
-
-                    if (!primesError) setPrimes(primesData || []);
-                    return;
+            } else {
+                console.warn('⚠️ [loadAnalyse] Pas d\'analyse MySQL, data reçue:', data);
+                // Repli sur LocalStorage uniquement si MySQL est vide
+                const localAnalyse = localStorage.getItem(`analyse_${chantierId}`);
+                if (localAnalyse) {
+                    setAnalyse(JSON.parse(localAnalyse));
+                    const localPrimes = localStorage.getItem(`primes_${chantierId}`);
+                    if (localPrimes) setPrimes(JSON.parse(localPrimes));
+                } else {
+                    setAnalyse(null);
+                    setPrimes([]);
                 }
-            } catch (supaError) {
-                console.warn('⚠️ Supabase Cache (Chargement) - Repli sur local');
-            }
-
-            // 3. Repli sur LocalStorage
-            const localAnalyse = localStorage.getItem(`analyse_${chantierId}`);
-            if (localAnalyse) {
-                setAnalyse(JSON.parse(localAnalyse));
-                const localPrimes = localStorage.getItem(`primes_${chantierId}`);
-                if (localPrimes) setPrimes(JSON.parse(localPrimes));
             }
         } catch (error: any) {
             console.error('❌ Erreur Chargement:', error);
@@ -173,7 +146,7 @@ const AnalyseChantierPage: React.FC<AnalyseChantierPageProps> = ({ chantierId, o
         // Tolérance ±2 jours
         const duree_respectee = Math.abs(ecart_duree) <= 2;
 
-        return {
+        const results = {
             budget_prevu,
             budget_reel,
             budget_respecte,
@@ -184,6 +157,8 @@ const AnalyseChantierPage: React.FC<AnalyseChantierPageProps> = ({ chantierId, o
             duree_respectee,
             ecart_duree
         };
+        console.log("🧮 Résultats du calcul d'analyse:", results);
+        return results;
     };
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'bl' | 'bc' | 'br') => {
@@ -232,48 +207,42 @@ const AnalyseChantierPage: React.FC<AnalyseChantierPageProps> = ({ chantierId, o
                 genere_par: user.email
             };
 
-            // Supprimer l'ancienne analyse si elle existe
-            if (analyse) {
-                await supabase
-                    .from('site_analyses')
-                    .delete()
-                    .eq('id_analyse', analyse.id_analyse);
-            }
+            // Sauvegarde dans MySQL uniquement
+            const response = await mysqlService.query('save_analyse', {}, {
+                ...nouvelleAnalyse,
+                genere_par: user?.email
+            });
 
-            // 1. Taper d'abord MySQL (Heberjahiz)
-            try {
-                const response = await mysqlService.query('save_analyse', {}, {
-                    ...nouvelleAnalyse,
-                    genere_par: user?.email
-                });
+            console.log("💾 Réponse du serveur à save_analyse:", JSON.stringify(response));
 
-                if (response.status === 'success') {
-                    const savedAnalyse = { ...nouvelleAnalyse, id_analyse: response.id } as AnalyseChantier;
-                    setAnalyse(savedAnalyse);
-                    toast.success('✅ Analyse enregistrée avec succès !');
-                } else {
-                    throw new Error("Erreur serveur MySQL");
-                }
-            } catch (mysqlError) {
-                console.warn('⚠️ Échec MySQL, tentative Supabase...');
-
-                // 2. Backup Supabase (si disponible)
+            if (response.status === 'success') {
+                toast.success('✅ Analyse enregistrée avec succès !');
+                // On fixe l'analyse localement d'abord (ne pas dépendre de response.id qui peut être 0)
+                const savedAnalyse = { ...nouvelleAnalyse, id_analyse: response.id || 0 } as AnalyseChantier;
+                setAnalyse(savedAnalyse);
+                // Recharger depuis MySQL pour avoir l'id_analyse réel (si différent de 0)
+                // sans écraser l'état si le rechargement échoue
                 try {
-                    const { data: analyseData, error: analyseError } = await supabase
-                        .from('site_analyses')
-                        .insert([nouvelleAnalyse])
-                        .select()
-                        .single();
-
-                    if (analyseError) throw analyseError;
-                    setAnalyse(analyseData);
-                    toast.success('✅ Analyse enregistrée avec succès !');
-                } catch (supaError) {
-                    console.warn('⚠️ Échec Supabase - Sauvegarde locale');
-                    localStorage.setItem(`analyse_${chantierId}`, JSON.stringify(nouvelleAnalyse));
-                    setAnalyse(nouvelleAnalyse as AnalyseChantier);
-                    toast.info('✅ Analyse sauvegardée (Mode local)');
+                    const freshData = await mysqlService.query('get_analyses', { id_chantier: chantierId });
+                    if (freshData && typeof freshData === 'object' && !Array.isArray(freshData) && freshData.id_chantier) {
+                        setAnalyse(freshData as AnalyseChantier);
+                        const primeParams = freshData.id_analyse
+                            ? { id_analyse: String(freshData.id_analyse) }
+                            : { id_chantier: chantierId };
+                        const primesData = await mysqlService.query('get_primes', primeParams);
+                        if (Array.isArray(primesData)) {
+                            setPrimes(primesData.map((p: any) => ({
+                                ...p,
+                                id_prime: p.id_prime || p.id || `${p.matricule}-${p.nom_monteur}`
+                            })));
+                        }
+                    }
+                    // Si freshData est null/invalide, on garde savedAnalyse déjà setté
+                } catch (reloadError) {
+                    console.warn('⚠️ Reload après save échoué, on garde l\'état local');
                 }
+            } else {
+                throw new Error("Erreur serveur MySQL lors de la sauvegarde");
             }
 
         } catch (error: any) {
@@ -295,12 +264,15 @@ const AnalyseChantierPage: React.FC<AnalyseChantierPageProps> = ({ chantierId, o
 
             const nouvelles_primes: Partial<PrimeChantier>[] = [];
 
-            // Préparation des primes
+            console.log('▶️ [Primes] handleEnregistrerPrimes appelé, form:', primesForm);
+            console.log('▶️ [Primes] potentialBeneficiaries count:', potentialBeneficiaries.length);
+
+            // Préparation des primes — comparaison en Number() pour éviter string vs number
             if (primesForm.chef_chantier_matricule && primesForm.chef_chantier_montant > 0) {
-                const b = potentialBeneficiaries.find(p => p.matricule === primesForm.chef_chantier_matricule);
+                const b = potentialBeneficiaries.find(p => Number(p.matricule) === Number(primesForm.chef_chantier_matricule));
+                console.log('🔍 Chef trouvé:', b, 'pour matricule:', primesForm.chef_chantier_matricule);
                 if (b) {
                     const id = generateId();
-                    console.log("💎 ID Généré Chef:", id);
                     nouvelles_primes.push({
                         id_prime: id,
                         id_analyse: analyse.id_analyse,
@@ -311,14 +283,16 @@ const AnalyseChantierPage: React.FC<AnalyseChantierPageProps> = ({ chantierId, o
                         montant_prime: primesForm.chef_chantier_montant,
                         statut: 'en_attente'
                     });
+                } else {
+                    toast.error(`Monteur matricule ${primesForm.chef_chantier_matricule} introuvable`);
                 }
             }
 
             if (primesForm.sous_chef_matricule && primesForm.sous_chef_montant > 0) {
-                const b = potentialBeneficiaries.find(p => p.matricule === primesForm.sous_chef_matricule);
+                const b = potentialBeneficiaries.find(p => Number(p.matricule) === Number(primesForm.sous_chef_matricule));
+                console.log('🔍 Sous-chef trouvé:', b, 'pour matricule:', primesForm.sous_chef_matricule);
                 if (b) {
                     const id = generateId();
-                    console.log("💎 ID Généré Sous-Chef:", id);
                     nouvelles_primes.push({
                         id_prime: id,
                         id_analyse: analyse.id_analyse,
@@ -329,40 +303,24 @@ const AnalyseChantierPage: React.FC<AnalyseChantierPageProps> = ({ chantierId, o
                         montant_prime: primesForm.sous_chef_montant,
                         statut: 'en_attente'
                     });
+                } else {
+                    toast.error(`Monteur matricule ${primesForm.sous_chef_matricule} introuvable`);
                 }
             }
 
+            console.log('📋 [Primes] Primes à enregistrer:', nouvelles_primes);
+
             if (nouvelles_primes.length === 0) {
-                alert('⚠️ Veuillez sélectionner au moins un bénéficiaire et saisir un montant');
+                toast.error('⚠️ Veuillez sélectionner au moins un bénéficiaire et saisir un montant supérieur à 0');
                 return;
             }
 
-            // 1. Tenter MySQL d'abord
-            try {
-                const response = await mysqlService.query('save_primes', {}, nouvelles_primes);
-                if (response.status === 'success') {
-                    await loadAnalyse();
-                    toast.success('✅ Primes enregistrées avec succès !');
-                } else {
-                    throw new Error("Erreur MySQL");
-                }
-            } catch (mysqlError) {
-                console.warn('⚠️ Échec MySQL, tentative Supabase...');
-
-                // 2. Secours Supabase
-                try {
-                    await supabase.from('primes_chantier').delete().eq('id_analyse', (analyse as any).id_analyse || 'local');
-                    const { data, error } = await supabase.from('primes_chantier').insert(nouvelles_primes).select();
-
-                    if (error) throw error;
-                    await loadAnalyse();
-                    toast.success('✅ Primes enregistrées avec succès !');
-                } catch (supaError) {
-                    console.warn('⚠️ Échec serveurs - Sauvegarde locale');
-                    localStorage.setItem(`primes_${chantierId}`, JSON.stringify(nouvelles_primes));
-                    setPrimes(nouvelles_primes as PrimeChantier[]);
-                    toast.info('✅ Primes enregistrées localement !');
-                }
+            const response = await mysqlService.query('save_primes', {}, nouvelles_primes);
+            if (response.status === 'success') {
+                await loadAnalyse();
+                toast.success('✅ Primes enregistrées avec succès !');
+            } else {
+                throw new Error("Erreur serveur MySQL lors de l'enregistrement des primes");
             }
 
         } catch (error: any) {
@@ -379,8 +337,6 @@ const AnalyseChantierPage: React.FC<AnalyseChantierPageProps> = ({ chantierId, o
             return;
         }
 
-        try {
-            // 1. Tenter MySQL d'abord
             const response = await mysqlService.query('update_prime_status', {}, {
                 id_prime: primeId,
                 statut: statut,
@@ -391,36 +347,25 @@ const AnalyseChantierPage: React.FC<AnalyseChantierPageProps> = ({ chantierId, o
             if (response.status === 'success') {
                 toast.success(`✅ Prime mise à jour !`);
                 await loadAnalyse();
-                return;
             } else {
                 throw new Error(response.message || "Erreur MySQL");
             }
-        } catch (mysqlError: any) {
-            console.warn('⚠️ Échec MySQL:', mysqlError.message);
-            try {
-                const { error } = await supabase
-                    .from('primes_chantier')
-                    .update({
-                        statut: statut,
-                        validee_par: user.email,
-                        date_validation: new Date().toISOString(),
-                        commentaire_validation: commentaire || null
-                    })
-                    .eq('id_prime', primeId);
-
-                if (error) throw error;
-                await loadAnalyse();
-                toast.success(`✅ Prime ${statut === 'validee' ? 'validée' : 'refusée'} avec succès !`);
-            } catch (supaError: any) {
-                console.error('❌ Erreur Validation:', supaError);
-                toast.error('❌ Erreur lors de la validation');
-            }
-        }
     };
 
     if (!chantier) {
         return <div className="p-6">Chantier introuvable</div>;
     }
+
+    const handleCleanup = async () => {
+        try {
+            await mysqlService.query('get_analyses', { id_chantier: chantierId, cleanup: 'true' });
+            toast.success('Base de données réparée. Re-générez l\'analyse.');
+            setAnalyse(null);
+            loadAnalyse();
+        } catch (error) {
+            toast.error('Erreur lors de la réparation');
+        }
+    };
 
     if (loading) {
         return <div className="p-6">Chargement...</div>;
@@ -428,11 +373,22 @@ const AnalyseChantierPage: React.FC<AnalyseChantierPageProps> = ({ chantierId, o
 
     const calculs = calculateAnalyse();
 
-    // Liste des bénéficiaires potentiels : UNIQUEMENT les 6 permanents de la direction
+    // Liste des bénéficiaires : tous les monteurs actifs (priorité aux permanents de direction)
     const potentialBeneficiaries = monteurs
-        .filter(m => PERMANENT_MANAGEMENT_MATRICULES.includes(m.matricule))
-        .map(m => ({ matricule: m.matricule, nom: m.nom_monteur }))
-        .sort((a, b) => a.nom.localeCompare(b.nom));
+        .filter(m => m.actif !== false && m.actif !== 0)
+        .map(m => ({
+            matricule: m.matricule,
+            nom: m.nom_monteur,
+            isPermanent: PERMANENT_MANAGEMENT_MATRICULES.includes(m.matricule)
+        }))
+        .sort((a, b) => {
+            // Les permanents de direction en premier
+            if (a.isPermanent && !b.isPermanent) return -1;
+            if (!a.isPermanent && b.isPermanent) return 1;
+            return a.nom.localeCompare(b.nom);
+        });
+    
+    console.log('👥 [Primes] Bénéficiaires disponibles:', potentialBeneficiaries.length, potentialBeneficiaries.map(p => `${p.nom} (${p.matricule})`));
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
@@ -648,6 +604,14 @@ const AnalyseChantierPage: React.FC<AnalyseChantierPageProps> = ({ chantierId, o
                                     <Save className="w-5 h-5" />
                                     {isGenerating ? 'Génération...' : 'Générer l\'Analyse'}
                                 </button>
+                                
+                                <button
+                                    onClick={handleCleanup}
+                                    className="w-full mt-4 flex items-center justify-center gap-2 text-slate-400 hover:text-slate-600 transition-colors text-sm"
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                    Problème d'affichage ? Réparer la base de données
+                                </button>
                             </div>
                         )}
                     </div>
@@ -814,18 +778,28 @@ const AnalyseChantierPage: React.FC<AnalyseChantierPageProps> = ({ chantierId, o
                             </div>
                         </div>
 
-                        {/* Section Primes */}
-                        {analyse.tous_criteres_parfaits && (
-                            <div className="bg-white rounded-xl shadow-lg p-8">
-                                <div className="flex items-center gap-3 mb-6">
-                                    <Award className="w-6 h-6 text-yellow-600" />
-                                    <h2 className="text-2xl font-bold text-slate-800">Primes de Performance</h2>
+                        {/* Section Primes - Visible si analyse existe (même si non parfaite) */}
+                        {analyse && (
+                            <div className="bg-white rounded-xl shadow-lg p-8 mt-6">
+                                <div className="flex items-center justify-between mb-6">
+                                    <div className="flex items-center gap-3">
+                                        <Award className="w-6 h-6 text-yellow-600" />
+                                        <h2 className="text-2xl font-bold text-slate-800">Primes de Performance</h2>
+                                    </div>
+                                    {!analyse.tous_criteres_parfaits && (
+                                        <div className="flex items-center gap-2 px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-sm font-medium">
+                                            <AlertTriangle className="w-4 h-4" />
+                                            Critères non optimaux
+                                        </div>
+                                    )}
                                 </div>
 
                                 {primes.length === 0 ? (
                                     <div className="space-y-6">
                                         <p className="text-slate-600">
-                                            Tous les critères sont parfaits ! Définissez les primes pour le chef de chantier et le sous-chef.
+                                            {analyse.tous_criteres_parfaits
+                                                ? '✅ Tous les critères sont parfaits ! Définissez les primes pour le chef de chantier et le sous-chef.'
+                                                : '⚠️ Critères non optimaux. Vous pouvez néanmoins attribuer des primes manuellement.'}
                                         </p>
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -503,7 +503,7 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
                     />
                     <datalist id="responsables-list">
                       {monteurs
-                        .filter(m => [100, 101, 102, 103, 104, 157].includes(m.matricule))
+                        .filter(m => [100, 101, 102, 103, 104, 157].includes(Number(m.matricule)))
                         .map(m => <option key={m.matricule} value={m.nom_monteur} />)}
                     </datalist>
                   </div>
@@ -518,7 +518,7 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
                     />
                     <datalist id="chefs-list">
                       {monteurs
-                        .filter(m => [100, 101, 102, 103, 104, 157].includes(m.matricule))
+                        .filter(m => [100, 101, 102, 103, 104, 157].includes(Number(m.matricule)))
                         .map(m => <option key={m.matricule} value={m.nom_monteur} />)}
                     </datalist>
                   </div>

@@ -40,6 +40,11 @@ const Dashboard: React.FC<DashboardProps> = ({ navigateTo }) => {
   const { chantiers, monteurs, lignesCouts, articles, mouvements } = useData();
   const { user } = useAuth();
   const [timeRange, setTimeRange] = useState('Mensuel');
+  const [isMounted, setIsMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // --- KPI CALCULATIONS ---
   const activeChantiers = chantiers.filter(c => c.statut === 'actif');
@@ -258,7 +263,13 @@ const Dashboard: React.FC<DashboardProps> = ({ navigateTo }) => {
             </div>
 
             <div className="h-[300px] md:h-[400px] w-full">
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+              {isMounted && (
+                <ResponsiveContainer 
+                  key={`chart-${chantiers.length}-${lignesCouts.length}`} 
+                  width="100%" 
+                  height="100%" 
+                  minHeight={300}
+                >
                 <AreaChart data={chartData} margin={{ top: 20, right: 0, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorReelPremium" x1="0" y1="0" x2="0" y2="1">
@@ -282,6 +293,7 @@ const Dashboard: React.FC<DashboardProps> = ({ navigateTo }) => {
                   <Area type="monotone" name="Dépenses Réelles" dataKey="reel" stroke="#6366f1" strokeWidth={4} fill="url(#colorReelPremium)" dot={{ r: 6, strokeWidth: 4, stroke: '#fff', fill: '#6366f1' }} activeDot={{ r: 8, stroke: '#6366f1', strokeWidth: 0 }} />
                 </AreaChart>
               </ResponsiveContainer>
+              )}
             </div>
           </div>
 

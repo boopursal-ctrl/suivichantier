@@ -150,8 +150,8 @@ const Monteurs: React.FC = () => {
         scan_cin_recto: formData.scan_cin_recto || null,
         scan_cin_verso: formData.scan_cin_verso || null,
         ville_residence: formData.ville_residence || null,
-        is_blacklisted: editingMonteur?.is_blacklisted || false,
-        blacklist_reason: editingMonteur?.blacklist_reason || null
+        is_blacklisted: editingMonteur ? (editingMonteur.is_blacklisted || false) : false,
+        blacklist_reason: editingMonteur ? (editingMonteur.blacklist_reason || null) : null
       };
 
       console.log('📝 Monteur data prepared:', monteurData);

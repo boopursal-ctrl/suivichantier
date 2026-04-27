@@ -1,8 +1,8 @@
 
 import React, { useState } from 'react';
 import { useData } from '../contexts/DataContext';
-import { supabase } from '../services/supabaseClient';
-import { Shield, UserPlus, Trash2, Mail, CheckCircle, XCircle, Edit, Save, X, FileText, Activity, Key, Eye, EyeOff } from 'lucide-react';
+import { mysqlService } from '../services/mysqlService';
+import { Shield, UserPlus, Trash2, Mail, CheckCircle, XCircle, Edit, Save, X, Activity, Key, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { User, UserRole, AppModule, AuditLog } from '../types';
 
@@ -42,21 +42,16 @@ const AdminPanel: React.FC = () => {
     { id: 'admin', label: 'Administration SaaS' },
   ];
 
-  // Fetch Logs
+  // Fetch Logs depuis MySQL
   React.useEffect(() => {
     if (activeTab === 'logs') {
       const fetchLogs = async () => {
         setLoadingLogs(true);
-        const { data, error } = await supabase
-          .from('audit_logs')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(50);
-
-        if (data) {
-          // Map user emails if possible, currently just raw data
-          // We could join, but simple loop is fine or just show user ID
-          setLogs(data as AuditLog[]);
+        try {
+          const data = await mysqlService.query('get_audit_logs');
+          if (Array.isArray(data)) setLogs(data as AuditLog[]);
+        } catch (e) {
+          setLogs([]);
         }
         setLoadingLogs(false);
       };

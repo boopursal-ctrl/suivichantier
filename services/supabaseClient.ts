@@ -7,8 +7,8 @@ export const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOi
 // Client public (anon key) - pour les opérations normales
 export const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
-    persistSession: true,
-    autoRefreshToken: true,
+    persistSession: false, // Désactivé pour éviter de chercher des sessions inexistantes
+    autoRefreshToken: false, // Désactivé pour arrêter les erreurs DNS
     detectSessionInUrl: false,
     storage: {
       getItem: (key) => {
@@ -39,13 +39,6 @@ export const supabaseAdmin = serviceRoleKey
   : null;
 
 // Test de connexion
-supabase.auth.getSession().then(({ data, error }) => {
-  if (error) {
-    console.error('❌ Supabase connection error:', error);
-  } else {
-    console.log('✅ Supabase client initialized successfully');
-    if (!serviceRoleKey) {
-      console.warn('⚠️ VITE_SUPABASE_SERVICE_ROLE_KEY non définie - la création d\'utilisateurs utilisera un fallback');
-    }
-  }
+supabase.auth.getSession().catch(() => {
+  console.warn('⚠️ Supabase unreachable on initialization (likely paused)');
 });

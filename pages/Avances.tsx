@@ -20,7 +20,6 @@ import {
 import { format, isValid } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { supabase } from '../services/supabaseClient';
 import { mysqlService } from '../services/mysqlService';
 import { formatCurrency, cn } from '../utils';
 
@@ -90,31 +89,19 @@ const Avances = () => {
 
     const fetchAvances = async () => {
         setIsLoading(true);
-        const localKey = `avances_${selectedChantierId}_${currentMonth}_${currentYear}`;
-
         try {
-            // 1. Tenter MySQL (Heberjahiz)
-            try {
-                const data = await mysqlService.query('get_avances', {
-                    id_chantier: selectedChantierId,
-                    mois: currentMonth.toString(),
-                    annee: currentYear.toString()
-                });
+            const data = await mysqlService.query('get_avances', {
+                id_chantier: selectedChantierId,
+                mois: currentMonth.toString(),
+                annee: currentYear.toString()
+            });
 
-                if (Array.isArray(data)) {
-                    setAvancesList(data);
-                    localStorage.setItem(localKey, JSON.stringify(data));
-                    return; // Succès MySQL
-                }
-            } catch (mysqlError) {
-                console.warn('⚠️ MySQL Avances non disponible, repli sur local/supa');
+            if (Array.isArray(data)) {
+                setAvancesList(data);
             }
-
-            // 2. Repli Supabase ou Local
-            const localData = localStorage.getItem(localKey);
-            setAvancesList(localData ? JSON.parse(localData) : []);
-        } catch (error: any) {
-            console.error('❌ Erreur Chargement:', error);
+        } catch (error) {
+            console.error('❌ Erreur Chargement Avances:', error);
+            toast.error('Erreur lors du chargement des avances');
         } finally {
             setIsLoading(false);
         }
@@ -122,17 +109,17 @@ const Avances = () => {
 
     const fetchPointages = async () => {
         try {
-            // Tenter MySQL (Heberjahiz)
             const data = await mysqlService.query('get_pointages', {
                 id_chantier: selectedChantierId,
                 mois: currentMonth.toString(),
                 annee: currentYear.toString()
             });
+
             if (Array.isArray(data)) {
                 setCurrentPointages(data);
             }
         } catch (error) {
-            console.warn('⚠️ Erreur fetch pointages MySQL:', error);
+            console.error('❌ Erreur Chargement Pointages:', error);
         }
     };
 
@@ -181,65 +168,40 @@ const Avances = () => {
         };
 
         try {
-            // 1. Sauvegarde locale immédiate (Sécurité)
-            const localKey = `avances_${selectedChantierId}_${currentMonth}_${currentYear}`;
-            const existing = JSON.parse(localStorage.getItem(localKey) || '[]');
-            localStorage.setItem(localKey, JSON.stringify([newAdvance, ...existing]));
-            setAvancesList(prev => [newAdvance as AdvanceRequest, ...prev]);
-
-            // 2. Tentative de synchronisation MySQL (Heberjahiz)
-            try {
-                const response = await mysqlService.query('save_avance', {}, {
-                    ...newAdvance,
-                    created_by: user?.email
-                });
-                if (response.status === 'success') {
-                    toast.success('✅ Demande enregistrée avec succès !');
-                } else {
-                    throw new Error("Erreur MySQL");
-                }
-            } catch (mysqlError) {
-                console.warn('⚠️ Échec MySQL, conservation en local');
-                toast.success('✅ Demande enregistrée localement (Serveur indisponible)');
+            const response = await mysqlService.query('save_avance', {}, newAdvance);
+            if (response.status === 'success') {
+                toast.success('Demande d\'avance envoyée');
+                fetchAvances();
+                setIsFormOpen(false);
+                setFormMatricule('');
+                setFormMontant('');
+                setFormCommentaire('');
+            } else {
+                throw new Error(response.message || "Erreur serveur MySQL");
             }
-        } catch (error) {
-            console.error('Erreur :', error);
-            toast.error('❌ Erreur lors de l\'enregistrement');
-        } finally {
-            setIsFormOpen(false);
-            setFormMatricule('');
-            setFormMontant('');
-            setFormCommentaire('');
+        } catch (error: any) {
+            console.error('❌ Erreur Sauvegarde Avance:', error);
+            toast.error('Erreur lors de l\'envoi de la demande');
         }
     };
 
-    const handleUpdateStatus = async (id: string, newStatus: 'valide' | 'refuse') => {
+    const handleUpdateStatus = async (id: string, statut: 'valide' | 'refuse') => {
         try {
-            // 1. Update Local Immédiat
-            const updated = avancesList.map(a => a.id === id ? { ...a, statut: newStatus, valide_par: user?.email } : a);
-            setAvancesList(updated as AdvanceRequest[]);
-            const localKey = `avances_${selectedChantierId}_${currentMonth}_${currentYear}`;
-            localStorage.setItem(localKey, JSON.stringify(updated));
+            const response = await mysqlService.query('update_avance_status', {}, {
+                id: id,
+                statut: statut,
+                valide_par: user?.email
+            });
 
-            // 2. Tentative Update MySQL (Heberjahiz)
-            try {
-                const response = await mysqlService.query('update_avance_status', {}, {
-                    id: id,
-                    statut: newStatus,
-                    valide_par: user?.email
-                });
-
-                if (response.status === 'success') {
-                    toast.success(`✅ Statut mis à jour : ${newStatus}`);
-                } else {
-                    throw new Error("Erreur MySQL");
-                }
-            } catch (mysqlError) {
-                console.warn('⚠️ Échec MySQL, conservation en local');
-                toast.success(`✅ Statut mis à jour localement (${newStatus})`);
+            if (response.status === 'success') {
+                toast.success(`Demande ${statut === 'valide' ? 'acceptée' : 'refusée'}`);
+                fetchAvances();
+            } else {
+                throw new Error(response.message || "Erreur MySQL");
             }
-        } catch (error) {
-            toast.error('❌ Erreur lors de la mise à jour');
+        } catch (error: any) {
+            console.error('❌ Erreur Validation Avance:', error);
+            toast.error('Erreur lors de la validation');
         }
     };
 
