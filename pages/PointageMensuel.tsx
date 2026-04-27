@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useData } from '../contexts/DataContext';
 import {
     format,
@@ -363,9 +363,9 @@ const PointageMensuel = () => {
         toast.success("PDF téléchargé");
     };
 
-    const handleSave = async () => {
+    const handleSave = async (isAutoSave = false) => {
         if (!selectedChantier) {
-            toast.error("Veuillez sélectionner un chantier");
+            if (!isAutoSave) toast.error("Veuillez sélectionner un chantier");
             return;
         }
 
@@ -400,16 +400,40 @@ const PointageMensuel = () => {
 
             const response = await mysqlService.query('save_pointages', {}, updates);
             if (response.status === 'success') {
-                toast.success("Pointage enregistré avec succès !");
+                if (!isAutoSave) {
+                    toast.success("Pointage enregistré avec succès !");
+                }
             } else {
                 throw new Error(response.message || "Erreur MySQL");
             }
 
         } catch (error) {
             console.error('Erreur sauvegarde:', error);
-            toast.error("Erreur lors de la sauvegarde");
+            if (!isAutoSave) {
+                toast.error("Erreur lors de la sauvegarde");
+            }
         }
     };
+
+    const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+    useEffect(() => {
+        if (!selectedChantier || Object.keys(pointages).length === 0) return;
+
+        if (autoSaveTimerRef.current) {
+            clearTimeout(autoSaveTimerRef.current);
+        }
+
+        autoSaveTimerRef.current = setTimeout(() => {
+            handleSave(true).catch(err => {
+                console.error("Erreur Autosave:", err);
+            });
+        }, 1500);
+
+        return () => {
+            if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+        };
+    }, [pointages, salaires]);
 
     return (
         <div className="flex flex-col min-h-[calc(100vh-theme(spacing.24))] gap-4 md:gap-6 max-w-[1920px] mx-auto pb-10">
