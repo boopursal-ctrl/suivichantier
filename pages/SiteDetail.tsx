@@ -6,11 +6,12 @@
 import React, { useState } from 'react';
 import { useData } from '../contexts/DataContext';
 import { LigneCout, AffectationMonteur, Versement, TypeCout, Chantier, MonteurLocal, StadeAvancement } from '../types';
-import { formatCurrency, formatDate, countDays, cn } from '../utils';
+import { formatCurrency, formatDate, countDays, countWorkDays, cn, getCityName } from '../utils';
 import { ArrowLeft, Box, Truck, Plus, Trash2, Edit2, Wallet, Users, Banknote, Calendar, MapPin, CheckCircle2, AlertTriangle, X, FileText, Car, HardHat, Save, MessageSquare, Minus, Search, UserPlus, ArrowRight, Utensils, Home, TrendingUp, BarChart3 } from 'lucide-react';
 import { createContratAutomatique } from '../services/contratService';
 import { useAuth } from '../contexts/AuthContext';
 import AnalyseChantierPage from './AnalyseChantier';
+import { mysqlService } from '../services/mysqlService';
 
 
 interface SiteDetailProps {
@@ -18,48 +19,17 @@ interface SiteDetailProps {
   onBack: () => void;
 }
 
-// Helper function to convert city codes to names
-const getCityName = (code: string): string => {
-  const cityMap: { [key: string]: string } = {
-    '528': 'Rabat',
-    '539': 'Casablanca',
-    '540': 'Salé',
-    '541': 'Tanger',
-    '542': 'Fès',
-    '543': 'Marrakech',
-    '544': 'Agadir',
-    '545': 'Meknès',
-    '546': 'Oujda',
-    '547': 'Kénitra',
-    '548': 'Tétouan',
-    '549': 'Safi',
-    '550': 'El Jadida',
-    '551': 'Nador',
-    '552': 'Béni Mellal',
-    '553': 'Mohammedia',
-    '554': 'Khouribga',
-    '555': 'Settat',
-    '556': 'Larache',
-    '557': 'Khemisset',
-    '558': 'Guelmim',
-    '559': 'Berrechid',
-    '560': 'Taza',
-    // Add more as needed
-  };
-  return cityMap[code] || code; // Return code if not found in map
-};
-
 
 
 const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
   const { user } = useAuth();
   const {
     chantiers, lignesCouts, affectations, versements, monteurs, updateChantier,
-    addAffectation, removeAffectation, updateAffectation,
+    addAffectation, removeAffectation, updateAffectation, updateMonteur,
     addCout, deleteCout,
     addVersement, deleteVersement,
     interimaires, addInterimaire,
-    stock, addMouvement, mouvements, articles
+    stock, addMouvement, mouvements, articles, refreshData
   } = useData();
 
   // Data Fetching Helpers (Moved up for Unified view access)
@@ -81,6 +51,22 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
     commentaire: ''
   });
 
+  const [pointagesReels, setPointagesReels] = useState<any[]>([]);
+
+  React.useEffect(() => {
+    if (chantierId) {
+      const loadData = async () => {
+        try {
+          const res = await mysqlService.query('get_all_pointages_chantier', { id_chantier: chantierId });
+          if (Array.isArray(res)) setPointagesReels(res);
+        } catch (e) {
+          console.error("Erreur chargement pointages reels", e);
+        }
+      };
+      loadData();
+    }
+  }, [chantierId]);
+
   // --- PERMANENT STAFF TO IGNORE IN CONTRACTS & DAILY WAGES ---
   const PERMANENT_MANAGEMENT_MATRICULES = [100, 101, 102, 103, 104, 157];
 
@@ -99,6 +85,7 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
     date_debut: string;
     date_fin?: string;
     jours_prevus?: number; // pour interim
+    jours_pointes?: number; // reel du terrain
     total_cost: number;
     relatedCosts?: number; // Pour affichage séparé
     originalObject: any; // Keep reference for actions
@@ -111,7 +98,7 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
     ...workers.map(w => {
       const end = w.date_sortie || new Date().toISOString().split('T')[0];
       const days = countDays(w.date_entree, end);
-      const relatedCosts = costs.filter(c => c.related_monteur_id === String(w.matricule)).reduce((s, c) => s + c.montant_reel, 0);
+      const relatedCosts = costs.filter(c => c.related_monteur_id === String(w.matricule)).reduce((s, c) => s + Number(c.montant_reel || 0), 0);
 
       // Find the monteur to get ville_residence
       const monteur = monteurs.find(m => m.matricule === w.matricule);
@@ -125,6 +112,8 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
         cout_jour: w.salaire_jour,
         date_debut: w.date_entree,
         date_fin: w.date_sortie,
+        jours_prevus: days,
+        jours_pointes: pointagesReels.filter(p => String(p.matricule) === String(w.matricule)).reduce((s, p) => s + Number(p.total_jours || 0), 0),
         total_cost: (PERMANENT_MANAGEMENT_MATRICULES.includes(Number(w.matricule)) ? 0 : (days * w.salaire_jour)) + relatedCosts,
         relatedCosts,
         originalObject: w,
@@ -134,7 +123,7 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
     // 2. Local/Interim (Monteurs Locaux)
     ...(chantier.monteurs_locaux || []).map(ml => {
       // Calculate expenses for this local worker
-      const relatedCosts = costs.filter(c => c.related_monteur_id === ml.id).reduce((s, c) => s + c.montant_reel, 0);
+      const relatedCosts = costs.filter(c => c.related_monteur_id === ml.id).reduce((s, c) => s + Number(c.montant_reel || 0), 0);
 
       const startDate = ml.date_debut || chantier.date_debut || new Date().toISOString().split('T')[0];
       const endDate = ml.date_fin || chantier.date_fin || new Date().toISOString().split('T')[0];
@@ -151,6 +140,7 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
         date_debut: startDate,
         date_fin: endDate,
         jours_prevus: days,
+        jours_pointes: pointagesReels.filter(p => String(p.matricule) === String(ml.matricule || ml.cin)).reduce((s, p) => s + Number(p.total_jours || 0), 0),
         total_cost: (days * ml.salaire_jour) + relatedCosts,
         relatedCosts,
         originalObject: ml,
@@ -341,7 +331,7 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
 
       const startDate = chantier.date_debut || new Date().toISOString().split('T')[0];
       const endDate = chantier.date_fin;
-      const initialDays = countDays(startDate, endDate || new Date().toISOString().split('T')[0]);
+      const initialDays = countWorkDays(startDate, endDate || new Date().toISOString().split('T')[0]);
 
       // Add to Local List (Chantier specific)
       const newLocal: MonteurLocal = {
@@ -349,7 +339,7 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
         nom_complet: name,
         cin: cin,
         salaire_jour: Number(newWorkerForm.salaire) || 0,
-        jours_travailles: initialDays > 0 ? initialDays : 0,
+        jours_travailles: initialDays,
         date_debut: startDate,
         date_fin: endDate,
         ville_residence: newWorkerForm.ville || '',
@@ -486,6 +476,33 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
     setAdjustDaysModalState(prev => ({ ...prev, isOpen: false }));
   };
 
+  const handleUpdateWorkerSalary = async (worker: UnifiedWorker, newSalary: number) => {
+    if (!chantier) return;
+
+    if (worker.type === 'PERMANENT') {
+      const monteur = monteurs.find(m => m.matricule === worker.matricule);
+      if (monteur) {
+        await updateMonteur({ ...monteur, salaire_base: newSalary });
+      }
+    } else {
+      const updatedList = (chantier.monteurs_locaux || []).map(ml => {
+        if (ml.id === worker.originalId) {
+          return { ...ml, salaire_jour: newSalary };
+        }
+        return ml;
+      });
+      await updateChantier({ ...chantier, monteurs_locaux: updatedList });
+
+      // Update globally if CIN exists
+      if (worker.cin) {
+        const interimaire = interimaires.find(i => i.cin === worker.cin);
+        if (interimaire) {
+          // You might have a way to update interimaire salary globally here if needed
+        }
+      }
+    }
+  };
+
   // --- UNIFIED WORKER LOGIC END ---
 
   // Modals States
@@ -516,7 +533,7 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
     nom_complet: '',
     cin: '',
     salaire_jour: 120, // Default Default Value for Interim
-    jours_travailles: 0
+    jours_travailles: chantier?.duree_prevue || 0
   });
 
   const [expenseFormData, setExpenseFormData] = useState({
@@ -556,8 +573,9 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
     workerId: '',
     workerName: '',
     days: 0,
-    transportRate: 25,
+    transportRate: 20,
     transportTotal: 0,
+    transportVoyageTotal: 0,
     repasRate: 70,
     repasTotal: 0,
     hebergementRate: 100,
@@ -570,33 +588,34 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
     if (!chantier) return;
 
     // Normalize Cities
-    // Normalize Cities
     const workerCity = (worker.ville_residence || '').trim().toLowerCase();
     const siteCityRaw = chantier.ville_code || '';
-    // Check if it's a code (digits) or name. getCityName handles both but we want to be safe.
     const siteCityName = getCityName(siteCityRaw).toLowerCase();
 
-    // Checks: 1. Exact match with code, 2. Match with resolved name
     const isSameCity = workerCity === siteCityRaw.toLowerCase() || workerCity === siteCityName;
 
-    // Determine Days (Existing Duration or default to today's duration)
-    // We use the days calculated in the table
-    const days = worker.jours_prevus || countDays(worker.date_debut, worker.date_fin || new Date().toISOString().split('T')[0]);
+    // Determine Days (Work days only)
+    const startDate = worker.date_debut || chantier.date_debut || new Date().toISOString().split('T')[0];
+    const endDate = worker.date_fin || chantier.date_fin || new Date().toISOString().split('T')[0];
+    const days = worker.jours_prevus || countWorkDays(startDate, endDate);
 
     // Rates
     // Transport: 50 if different city, 25 if same
     // Hebergement: 100 if diff, 0 if same (Rule applied strictly for ALL types)
-    const transportRate = isSameCity ? 25 : 50;
+    const transportLocalRate = isSameCity ? 0 : 20;
+    const transportVoyageRate = isSameCity ? 0 : 120;
+    const repasRate = isSameCity ? 0 : 70;
     const hebergementRate = isSameCity ? 0 : 100;
 
     setIndemnityForm({
       workerId: worker.type === 'PERMANENT' ? String(worker.matricule) : worker.id,
       workerName: worker.nom,
       days: days,
-      transportRate: transportRate,
-      transportTotal: days * transportRate,
-      repasRate: 70,
-      repasTotal: days * 70,
+      transportRate: transportLocalRate,
+      transportTotal: days * transportLocalRate,
+      transportVoyageTotal: transportVoyageRate,
+      repasRate: repasRate,
+      repasTotal: days * repasRate,
       hebergementRate: hebergementRate,
       hebergementTotal: days * hebergementRate,
       isSameCity,
@@ -609,20 +628,36 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
     // Create Expenses
     const commonData = {
       id_chantier: chantierId,
-      related_monteur_id: indemnityForm.workerId
+      related_monteur_id: String(indemnityForm.workerId),
+      date_cout: new Date().toISOString().split('T')[0]
     };
 
-    // 1. Transport
+    // 1. Transport Local
     if (indemnityForm.transportTotal > 0) {
       await addCout({
         ...commonData,
-        id_cout: `ind-tr-${Date.now()}`,
-        type_cout: 'transport',
+        id_cout: `ind-tr-${crypto.randomUUID()}`,
+        type_cout: 'transport_local',
         montant_prevu: indemnityForm.transportTotal,
         montant_reel: indemnityForm.transportTotal,
         cout_unitaire: indemnityForm.transportRate,
         quantite: indemnityForm.days,
-        commentaire: `Indemnité Transport (${indemnityForm.days}j)`,
+        commentaire: `Indemnité Transport Local (${indemnityForm.days}j)`,
+        statut: 'validé'
+      });
+    }
+
+    // 1b. Transport Voyage (En commun)
+    if (indemnityForm.transportVoyageTotal > 0) {
+      await addCout({
+        ...commonData,
+        id_cout: `ind-trv-${crypto.randomUUID()}`,
+        type_cout: 'transport_commun',
+        montant_prevu: indemnityForm.transportVoyageTotal,
+        montant_reel: indemnityForm.transportVoyageTotal,
+        cout_unitaire: 120,
+        quantite: 1,
+        commentaire: `Transport en Commun (Voyage)`,
         statut: 'validé'
       });
     }
@@ -631,7 +666,7 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
     if (indemnityForm.repasTotal > 0) {
       await addCout({
         ...commonData,
-        id_cout: `ind-rep-${Date.now()}`,
+        id_cout: `ind-rep-${crypto.randomUUID()}`,
         type_cout: 'repas',
         montant_prevu: indemnityForm.repasTotal,
         montant_reel: indemnityForm.repasTotal,
@@ -646,7 +681,7 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
     if (indemnityForm.hebergementTotal > 0) {
       await addCout({
         ...commonData,
-        id_cout: `ind-heb-${Date.now()}`,
+        id_cout: `ind-heb-${crypto.randomUUID()}`,
         type_cout: 'hebergement',
         montant_prevu: indemnityForm.hebergementTotal,
         montant_reel: indemnityForm.hebergementTotal,
@@ -658,7 +693,10 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
     }
 
     setIsIndemnityModalOpen(false);
-    alert("✅ Indemnités ajoutées aux dépenses.");
+    toast.success("✅ Indemnités enregistrées.");
+    
+    // Refresh data properly
+    await refreshData();
   };
 
   const openAddExtrasModal = (worker: UnifiedWorker) => {
@@ -702,21 +740,21 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
   // 1. Dépenses par Catégorie (Basé sur 'costs')
   const totalTransport = costs
     .filter(c => ['transport', 'transport_local', 'indemnite_deplacement'].includes(c.type_cout))
-    .reduce((sum, c) => sum + (c.montant_reel || 0), 0);
+    .reduce((sum, c) => sum + Number(c.montant_reel || 0), 0);
 
   const totalRepas = costs
     .filter(c => ['repas', 'indemnite_repas'].includes(c.type_cout))
-    .reduce((sum, c) => sum + (c.montant_reel || 0), 0);
+    .reduce((sum, c) => sum + Number(c.montant_reel || 0), 0);
 
   const totalHebergement = costs
     .filter(c => ['hebergement', 'indemnite_logement'].includes(c.type_cout))
-    .reduce((sum, c) => sum + (c.montant_reel || 0), 0);
+    .reduce((sum, c) => sum + Number(c.montant_reel || 0), 0);
 
   const totalAutresFrais = costs
     .filter(c => !['transport', 'transport_local', 'indemnite_deplacement',
       'repas', 'indemnite_repas',
       'hebergement', 'indemnite_logement'].includes(c.type_cout))
-    .reduce((sum, c) => sum + (c.montant_reel || 0), 0);
+    .reduce((sum, c) => sum + Number(c.montant_reel || 0), 0);
 
   const totalDepensesDirectes = totalTransport + totalRepas + totalHebergement + totalAutresFrais;
 
@@ -740,7 +778,7 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
   const totalMainDoeuvreLocale = 0;
   const totalFraisHebergementAuto = 0; // Removed feature
 
-  const totalVersements = siteVersements.reduce((sum, v) => sum + v.montant, 0);
+  const totalVersements = siteVersements.reduce((sum, v) => sum + Number(v.montant || 0), 0);
   const soldeNet = totalVersements - budgetDepense; // Solde Trésorerie
 
   // Handlers
@@ -763,7 +801,7 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
     // Recalculate duration if dates provided
     let newDuree = chantier.duree_prevue;
     if (infoFormData.date_debut && infoFormData.date_fin) {
-      newDuree = countDays(infoFormData.date_debut, infoFormData.date_fin);
+      newDuree = countWorkDays(infoFormData.date_debut, infoFormData.date_fin);
     }
 
     // Auto-activate if dates are set and it was instance
@@ -851,7 +889,7 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
       nom_complet: localWorkerForm.nom_complet || '',
       cin: cin,
       salaire_jour: localWorkerForm.salaire_jour || 120,
-      jours_travailles: localWorkerForm.jours_travailles || 0
+      jours_travailles: localWorkerForm.jours_travailles || chantier.duree_prevue || 0
     };
 
     const updatedList = [...(chantier.monteurs_locaux || []), newWorker];
@@ -1434,9 +1472,20 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
                         {w.type === 'PREVU' && <span className="inline-flex items-center px-2 py-1 rounded text-xs font-bold bg-gray-100 text-gray-600">Prévu / Extra</span>}
                       </td>
                       <td className="px-6 py-4">
-                        <div className="font-bold text-gray-900">{w.nom}</div>
+                        <div className="font-bold text-gray-900 flex items-center gap-2">
+                          {w.nom}
+                          {(() => {
+                            const isHorsVille = (w.ville_residence || '').trim() !== (chantier?.ville_code || '').trim();
+                            return isHorsVille ? (
+                              <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 text-[10px] font-black rounded border border-orange-200">HORS VILLE</span>
+                            ) : (
+                              <span className="px-1.5 py-0.5 bg-green-100 text-green-700 text-[10px] font-black rounded border border-green-200">VILLE</span>
+                            );
+                          })()}
+                        </div>
                         <div className="text-xs text-gray-500 font-mono">
                           {w.matricule ? `Mat: ${w.matricule} ` : (w.cin ? `CIN: ${w.cin} ` : 'Sans ID')}
+                          {w.ville_residence && <span className="ml-2 opacity-60">• {getCityName(w.ville_residence)}</span>}
                         </div>
                       </td>
                       <td className="px-6 py-4 text-center">
@@ -1455,16 +1504,27 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
                           />
                         </div>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 text-center">
                         <div className="flex flex-col items-center gap-1">
                           <div className='font-bold text-gray-800'>{formatCurrency(w.cout_jour)} <span className="text-xs text-gray-400 font-normal">/j</span></div>
 
                           <div className="flex items-center bg-gray-100 rounded-lg p-1 mt-1">
                             <button onClick={() => handleModifyDays(w, -1)} className="w-6 h-6 flex items-center justify-center hover:bg-white rounded hover:shadow-sm text-gray-600"><Minus size={12} /></button>
-                            <span className="w-12 text-center font-mono font-bold text-sm bg-white mx-1 rounded shadow-sm" title="Jours calculés">
-                              {w.type === 'PERMANENT' ? countDays(w.date_debut, w.date_fin || new Date().toISOString().split('T')[0]) : w.jours_prevus}j
+                            <span className="w-12 text-center font-mono font-bold text-sm bg-white mx-1 rounded shadow-sm" title="Jours ouvrés calculés">
+                              {w.type === 'PERMANENT' ? countWorkDays(w.date_debut, w.date_fin || new Date().toISOString().split('T')[0]) : w.jours_prevus}j
                             </span>
                             <button onClick={() => handleModifyDays(w, 1)} className="w-6 h-6 flex items-center justify-center hover:bg-white rounded hover:shadow-sm text-gray-600"><Plus size={12} /></button>
+                          </div>
+
+                          {/* Affichage du Réel (Pointage) */}
+                          <div className={cn(
+                            "text-[10px] font-bold px-1.5 py-0.5 rounded-full mt-1 flex items-center gap-1",
+                            (w.jours_pointes || 0) > (w.type === 'PERMANENT' ? countWorkDays(w.date_debut, w.date_fin || new Date().toISOString().split('T')[0]) : (w.jours_prevus || 0))
+                              ? "bg-red-50 text-red-600 border border-red-100"
+                              : "bg-emerald-50 text-emerald-600 border border-emerald-100"
+                          )}>
+                            {(w.jours_pointes || 0) > (w.type === 'PERMANENT' ? countWorkDays(w.date_debut, w.date_fin || new Date().toISOString().split('T')[0]) : (w.jours_prevus || 0)) && <AlertTriangle size={10} />}
+                            RÉEL: {w.jours_pointes || 0}j
                           </div>
                         </div>
                       </td>
@@ -1592,7 +1652,7 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
                         <span className="bg-gray-100 px-2 py-1 rounded text-xs text-gray-700">{cost.type_cout.replace('_', ' ')}</span>
                       </td>
                       <td className="py-4 text-sm text-gray-500">
-                        {cost.quantite} x {formatCurrency(cost.cout_unitaire)}
+                        {cost.quantite} x {formatCurrency(Number(cost.cout_unitaire || 0))}
                         {cost.commentaire && <div className="text-xs italic text-gray-400 mt-1">{cost.commentaire}</div>}
                       </td>
                       <td className="py-4 text-right font-bold text-gray-900">{formatCurrency(cost.montant_reel)}</td>
@@ -2333,11 +2393,10 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
                 <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
                   <div className="flex-1">
                     <p className="font-bold text-gray-700 flex items-center gap-2">
-                      <Car size={16} /> Transport
+                      <Car size={16} /> Transport Local
                     </p>
                     <p className="text-xs text-gray-500">
-                      Base: {indemnityForm.transportRate} DH/j
-                      {indemnityForm.transportRate === 25 ? ' (Local)' : ' (Inter-ville)'}
+                      Base: 20 DH/j
                     </p>
                   </div>
                   <div className="w-24">
@@ -2346,6 +2405,24 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
                       className="w-full border rounded p-1 text-right font-bold"
                       value={indemnityForm.transportTotal}
                       onChange={(e) => setIndemnityForm({ ...indemnityForm, transportTotal: Number(e.target.value) })}
+                    />
+                  </div>
+                </div>
+
+                {/* Transport Commun */}
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
+                  <div className="flex-1">
+                    <p className="font-bold text-gray-700 flex items-center gap-2">
+                      <Truck size={16} /> Transport Commun (Voyage)
+                    </p>
+                    <p className="text-xs text-gray-500">Base: 120 DH</p>
+                  </div>
+                  <div className="w-24">
+                    <input
+                      type="number"
+                      className="w-full border rounded p-1 text-right font-bold"
+                      value={indemnityForm.transportVoyageTotal}
+                      onChange={(e) => setIndemnityForm({ ...indemnityForm, transportVoyageTotal: Number(e.target.value) })}
                     />
                   </div>
                 </div>
@@ -2394,7 +2471,7 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
                 <div className="flex justify-between items-center pt-4 border-t">
                   <p className="font-bold text-lg">Total à ajouter:</p>
                   <p className="font-bold text-xl text-green-700">
-                    {formatCurrency(indemnityForm.transportTotal + indemnityForm.repasTotal + indemnityForm.hebergementTotal)}
+                    {formatCurrency(indemnityForm.transportTotal + indemnityForm.transportVoyageTotal + indemnityForm.repasTotal + indemnityForm.hebergementTotal)}
                   </p>
                 </div>
 

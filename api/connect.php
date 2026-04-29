@@ -246,20 +246,36 @@ try {
             break;
 
         case 'save_cout':
-            $sql = "INSERT INTO lignes_couts (id_chantier, type_cout, montant_reel, description, date_cout, id_cout) 
-                    VALUES (?, ?, ?, ?, ?, ?)
+            // Évolution du schéma pour inclure les nouveaux champs
+            $conn->exec("ALTER TABLE lignes_couts ADD COLUMN IF NOT EXISTS related_monteur_id VARCHAR(255) DEFAULT NULL,
+                         ADD COLUMN IF NOT EXISTS montant_prevu DECIMAL(15,2) DEFAULT 0,
+                         ADD COLUMN IF NOT EXISTS cout_unitaire DECIMAL(15,2) DEFAULT 0,
+                         ADD COLUMN IF NOT EXISTS quantite DECIMAL(15,2) DEFAULT 1,
+                         ADD COLUMN IF NOT EXISTS commentaire TEXT,
+                         ADD COLUMN IF NOT EXISTS statut VARCHAR(50) DEFAULT 'en_attente'");
+
+            $sql = "INSERT INTO lignes_couts (id_chantier, type_cout, montant_reel, description, date_cout, id_cout, related_monteur_id, montant_prevu, cout_unitaire, quantite, commentaire, statut) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON DUPLICATE KEY UPDATE 
                     id_chantier=VALUES(id_chantier), type_cout=VALUES(type_cout), 
                     montant_reel=VALUES(montant_reel), description=VALUES(description), 
-                    date_cout=VALUES(date_cout)";
+                    date_cout=VALUES(date_cout), related_monteur_id=VALUES(related_monteur_id),
+                    montant_prevu=VALUES(montant_prevu), cout_unitaire=VALUES(cout_unitaire),
+                    quantite=VALUES(quantite), commentaire=VALUES(commentaire), statut=VALUES(statut)";
             $stmt = $conn->prepare($sql);
             $stmt->execute([
                 $data['id_chantier'],
                 $data['type_cout'],
                 $data['montant_reel'],
-                $data['description'] ?? '',
+                $data['description'] ?? $data['commentaire'] ?? '',
                 $data['date_cout'] ?? date('Y-m-d'),
-                $data['id_cout'] ?? null
+                $data['id_cout'] ?? null,
+                $data['related_monteur_id'] ?? null,
+                $data['montant_prevu'] ?? 0,
+                $data['cout_unitaire'] ?? 0,
+                $data['quantite'] ?? 1,
+                $data['commentaire'] ?? $data['description'] ?? '',
+                $data['statut'] ?? 'en_attente'
             ]);
             echo json_encode(["status" => "success"]);
             break;
@@ -570,6 +586,12 @@ try {
         case 'get_pointages':
             $stmt = $conn->prepare("SELECT * FROM pointages_mensuels WHERE id_chantier = ? AND mois = ? AND annee = ?");
             $stmt->execute([$_GET['id_chantier'], $_GET['mois'], $_GET['annee']]);
+            echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+            break;
+
+        case 'get_all_pointages_chantier':
+            $stmt = $conn->prepare("SELECT * FROM pointages_mensuels WHERE id_chantier = ?");
+            $stmt->execute([$_GET['id_chantier']]);
             echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
             break;
 

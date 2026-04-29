@@ -51,14 +51,14 @@ const Dashboard: React.FC<DashboardProps> = ({ navigateTo }) => {
   const activeMonteurs = monteurs.filter(m => m.actif);
 
   // Finance
-  const totalBudgetPrevu = activeChantiers.reduce((sum, c) => sum + c.budget_prevu, 0);
-  const totalDepenses = lignesCouts.reduce((sum, cout) => sum + cout.montant_reel, 0);
+  const totalBudgetPrevu = activeChantiers.reduce((sum, c) => sum + Number(c.budget_prevu || 0), 0);
+  const totalDepenses = lignesCouts.reduce((sum, cout) => sum + Number(cout.montant_reel || 0), 0);
   const financePercent = totalBudgetPrevu > 0 ? (totalDepenses / totalBudgetPrevu) * 100 : 0;
 
   // Alerts
   const lowStockItems = articles.filter(a => a.quantite <= a.seuil_alerte);
   const budgetAlerts = chantiers.filter(c => {
-    const siteCosts = lignesCouts.filter(l => l.id_chantier === c.id_chantier).reduce((s, l) => s + l.montant_reel, 0);
+    const siteCosts = lignesCouts.filter(l => l.id_chantier === c.id_chantier).reduce((s, l) => s + Number(l.montant_reel || 0), 0);
     return c.budget_prevu > 0 && siteCosts > c.budget_prevu * 0.9;
   });
 
@@ -75,7 +75,7 @@ const Dashboard: React.FC<DashboardProps> = ({ navigateTo }) => {
     lignesCouts.forEach(cout => {
       const d = cout.created_at ? new Date(cout.created_at) : new Date();
       const key = `${d.getFullYear()}-${d.getMonth()}`;
-      if (data[key]) data[key].reel += cout.montant_reel;
+      if (data[key]) data[key].reel += Number(cout.montant_reel || 0);
     });
     // Smooth curve approximation for budget
     const budgetTrend = totalBudgetPrevu / 6;

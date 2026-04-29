@@ -86,8 +86,8 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
       ref_chantier: finalRef,
       nom_client: client?.nom_client || '',
       code_client: client?.code_client || '',
-      ville_code: client?.ville_code || '000',
-      budget_prevu: newChantier.budget_prevu || 0, // Now we respect the calculated budget
+      ville_code: newChantier.ville_code || client?.ville_code || '000',
+      budget_prevu: newChantier.budget_prevu || 0,
     };
 
     addChantier(chantierToAdd);
@@ -177,7 +177,7 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
 
                 // 1. Dépenses (lignesCouts)
                 const costs = lignesCouts.filter(c => c.id_chantier === chantier.id_chantier);
-                const totalDepenses = costs.reduce((sum, c) => sum + (c.montant_reel || 0), 0);
+                const totalDepenses = costs.reduce((sum, c) => sum + Number(c.montant_reel || 0), 0);
 
                 // 2. Main d'œuvre Permanents (affectations)
                 const affectationsChantier = affectations.filter(a => a.id_chantier === chantier.id_chantier);
@@ -186,7 +186,7 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
                   const dateFin = aff.date_sortie || new Date().toISOString().split('T')[0];
                   // Use countDays for inclusive calculation matching SiteDetail
                   const joursTravailes = Math.max(0, countDays(dateDebut, dateFin) - aff.jours_arret);
-                  return sum + (aff.salaire_jour * joursTravailes);
+                  return sum + (Number(aff.salaire_jour || 0) * joursTravailes);
                 }, 0);
 
                 // 3. Main d'œuvre Locaux/Intérimaires
@@ -195,14 +195,14 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
                   const startDate = ml.date_debut || chantier.date_debut || new Date().toISOString().split('T')[0];
                   const endDate = ml.date_fin || chantier.date_fin || new Date().toISOString().split('T')[0];
                   const days = Math.max(0, countDays(startDate, endDate));
-                  return sum + (ml.salaire_jour * days);
+                  return sum + (Number(ml.salaire_jour || 0) * days);
                 }, 0);
 
                 // Total Coûts Engagés = Dépenses + Main d'œuvre
                 const totalCoutsEngages = totalDepenses + totalMainOeuvrePermanents + totalMainOeuvreLocaux;
 
                 const acomptes = versements.filter(v => v.id_chantier === chantier.id_chantier);
-                const totalAcomptes = acomptes.reduce((sum, v) => sum + v.montant, 0);
+                const totalAcomptes = acomptes.reduce((sum, v) => sum + Number(v.montant || 0), 0);
                 const solde = totalAcomptes - totalCoutsEngages;
 
                 return (
@@ -482,13 +482,24 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
 
               {/* 3. Lieu & Equipe */}
               <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">Adresse / Lieu</label>
-                  <input type="text" className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-red-500 outline-none"
-                    value={newChantier.adresse || ''}
-                    onChange={e => setNewChantier({ ...newChantier, adresse: e.target.value })}
-                    placeholder="Ex: Hangar 3, Zone Industrielle..."
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Adresse / Lieu</label>
+                    <input type="text" className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-red-500 outline-none"
+                      value={newChantier.adresse || ''}
+                      onChange={e => setNewChantier({ ...newChantier, adresse: e.target.value })}
+                      placeholder="Ex: Hangar 3..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">Ville (Indicatif)</label>
+                    <input type="text" className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-red-500 outline-none"
+                      value={newChantier.ville_code || (clients.find(c => c.id_client === newChantier.id_client)?.ville_code) || ''}
+                      onChange={e => setNewChantier({ ...newChantier, ville_code: e.target.value })}
+                      placeholder="Ex: 522, 528..."
+                    />
+                    <p className="text-[10px] text-gray-500 mt-1">Par défaut: Ville du client</p>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">

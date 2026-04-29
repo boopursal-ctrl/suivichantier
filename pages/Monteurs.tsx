@@ -621,17 +621,17 @@ const Monteurs: React.FC = () => {
                           disabled={isSaving}
                         />
                       </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Ville de résidence</label>
-                      <input
-                        type="text"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 disabled:bg-gray-100"
-                        value={formData.ville_residence || ''}
-                        onChange={e => setFormData({ ...formData, ville_residence: e.target.value })}
-                        placeholder="Ex: Casablanca"
-                        disabled={isSaving}
-                      />
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Ville de résidence</label>
+                        <input
+                          type="text"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 disabled:bg-gray-100"
+                          value={formData.ville_residence || ''}
+                          onChange={e => setFormData({ ...formData, ville_residence: e.target.value })}
+                          placeholder="Ex: 522"
+                          disabled={isSaving}
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -707,9 +707,15 @@ const Monteurs: React.FC = () => {
                   <div>
                     <h4 className="text-sm font-bold text-gray-900 mb-3 uppercase tracking-wide border-b pb-1">Contrat & Salaire</h4>
                     <div className="grid grid-cols-3 gap-4">
-                      {/* Salaire removed as requested - using default in background if needed */}
-                      <div className="hidden">
-                        <input type="number" value={formData.salaire_jour || 100} onChange={() => { }} />
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Coût / Jour (DH)</label>
+                        <input
+                          type="number"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 disabled:bg-gray-100 font-bold text-red-700"
+                          value={formData.salaire_jour || 0}
+                          onChange={e => setFormData({ ...formData, salaire_jour: Number(e.target.value) })}
+                          disabled={isSaving}
+                        />
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Type de Contrat</label>

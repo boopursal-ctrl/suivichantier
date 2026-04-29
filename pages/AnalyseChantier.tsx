@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
 import { AnalyseChantier, PrimeChantier, Chantier } from '../types';
-import { formatCurrency, formatDate, countDays } from '../utils';
+import { formatCurrency, formatDate, countDays, countWorkDays } from '../utils';
 import {
     ArrowLeft, CheckCircle2, XCircle, AlertTriangle,
     TrendingUp, TrendingDown, Calendar, DollarSign,
@@ -27,6 +27,7 @@ const AnalyseChantierPage: React.FC<AnalyseChantierPageProps> = ({ chantierId, o
     const [primes, setPrimes] = useState<PrimeChantier[]>([]);
     const [loading, setLoading] = useState(true);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [pointagesReels, setPointagesReels] = useState<any[]>([]);
 
     // Form state pour génération
     const [formData, setFormData] = useState({
@@ -100,6 +101,16 @@ const AnalyseChantierPage: React.FC<AnalyseChantierPageProps> = ({ chantierId, o
         } finally {
             setLoading(false);
         }
+
+        // Charger les pointages réels pour l'analyse
+        try {
+            const pts = await mysqlService.query('get_all_pointages_chantier', { id_chantier: chantierId });
+            if (Array.isArray(pts)) {
+                setPointagesReels(pts);
+            }
+        } catch (e) {
+            console.error("Erreur chargement pointages pour analyse", e);
+        }
     };
 
     const calculateAnalyse = () => {
@@ -110,22 +121,41 @@ const AnalyseChantierPage: React.FC<AnalyseChantierPageProps> = ({ chantierId, o
         const workers = affectations.filter(a => a.id_chantier === chantierId);
 
         // Budget réel = coûts + salaires
-        const totalCouts = costs.reduce((sum, c) => sum + (c.montant_reel || 0), 0);
+        const totalCouts = costs.reduce((sum, c) => sum + Number(c.montant_reel || 0), 0);
 
         const PERMANENT_MANAGEMENT_MATRICULES = [100, 101, 102, 103, 104, 157];
         const totalSalaires = workers.reduce((sum, w) => {
             if (PERMANENT_MANAGEMENT_MATRICULES.includes(w.matricule)) return sum;
+            
+            // Chercher le pointage réel pour ce monteur
+            const pointagesMonteur = pointagesReels.filter(p => String(p.matricule) === String(w.matricule));
+            if (pointagesMonteur.length > 0) {
+                const totalJoursPointes = pointagesMonteur.reduce((s, p) => s + Number(p.total_jours || 0), 0);
+                return sum + (totalJoursPointes * Number(w.salaire_jour || 0));
+            }
+
+            // Fallback: Estimation planning
             const end = w.date_sortie || new Date().toISOString().split('T')[0];
-            const days = countDays(w.date_entree, end);
-            return sum + (days * w.salaire_jour);
+            const days = countWorkDays(w.date_entree, end);
+            return sum + (days * Number(w.salaire_jour || 0));
         }, 0);
 
         // Ajouter les monteurs locaux
         const localWorkersCost = (chantier.monteurs_locaux || []).reduce((sum, ml) => {
+            // Chercher le pointage réel pour cet intérimaire
+            const matricule = ml.matricule || ml.cin;
+            const pointagesMonteur = pointagesReels.filter(p => String(p.matricule) === String(matricule));
+            
+            if (pointagesMonteur.length > 0) {
+                const totalJoursPointes = pointagesMonteur.reduce((s, p) => s + Number(p.total_jours || 0), 0);
+                return sum + (totalJoursPointes * Number(ml.salaire_jour || 0));
+            }
+
+            // Fallback: Estimation planning
             const startDate = ml.date_debut || chantier.date_debut || new Date().toISOString().split('T')[0];
             const endDate = ml.date_fin || chantier.date_fin || new Date().toISOString().split('T')[0];
-            const days = Math.max(0, countDays(startDate, endDate));
-            return sum + (days * ml.salaire_jour);
+            const days = Math.max(0, countWorkDays(startDate, endDate));
+            return sum + (days * Number(ml.salaire_jour || 0));
         }, 0);
 
         const budget_reel = totalCouts + totalSalaires + localWorkersCost;
