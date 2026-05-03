@@ -596,13 +596,19 @@ try {
             break;
 
         case 'get_global_finance_summary':
+            // S'assurer que les colonnes existent (compatible avec les anciennes versions MySQL)
+            try { $conn->exec("ALTER TABLE pointages_mensuels ADD COLUMN frais_transport DECIMAL(15,2) DEFAULT 0"); } catch (Exception $e) {}
+            try { $conn->exec("ALTER TABLE pointages_mensuels ADD COLUMN frais_repas DECIMAL(15,2) DEFAULT 0"); } catch (Exception $e) {}
+            try { $conn->exec("ALTER TABLE pointages_mensuels ADD COLUMN frais_loyer DECIMAL(15,2) DEFAULT 0"); } catch (Exception $e) {}
+            try { $conn->exec("ALTER TABLE pointages_mensuels ADD COLUMN frais_gasoil DECIMAL(15,2) DEFAULT 0"); } catch (Exception $e) {}
+
             // Calcule le total de la main d'œuvre réelle (salaires + frais pointés par le chef) groupé par chantier
             $stmt = $conn->prepare("
                 SELECT id_chantier, 
-                SUM(total_salaire) as total_salaires,
+                SUM(COALESCE(total_salaire, 0)) as total_salaires,
                 SUM(COALESCE(frais_transport, 0) + COALESCE(frais_repas, 0) + COALESCE(frais_loyer, 0) + COALESCE(frais_gasoil, 0)) as total_frais_pointes,
-                SUM(total_salaire + COALESCE(frais_transport, 0) + COALESCE(frais_repas, 0) + COALESCE(frais_loyer, 0) + COALESCE(frais_gasoil, 0)) as total_main_doeuvre_reelle,
-                SUM(total_jours) as total_jours_pointes 
+                SUM(COALESCE(total_salaire, 0) + COALESCE(frais_transport, 0) + COALESCE(frais_repas, 0) + COALESCE(frais_loyer, 0) + COALESCE(frais_gasoil, 0)) as total_main_doeuvre_reelle,
+                SUM(COALESCE(total_jours, 0)) as total_jours_pointes 
                 FROM pointages_mensuels 
                 GROUP BY id_chantier
             ");
@@ -611,11 +617,6 @@ try {
             break;
 
         case 'save_pointages':
-            $conn->exec("ALTER TABLE pointages_mensuels 
-                         ADD COLUMN IF NOT EXISTS frais_transport DECIMAL(15,2) DEFAULT 0,
-                         ADD COLUMN IF NOT EXISTS frais_repas DECIMAL(15,2) DEFAULT 0,
-                         ADD COLUMN IF NOT EXISTS frais_loyer DECIMAL(15,2) DEFAULT 0,
-                         ADD COLUMN IF NOT EXISTS frais_gasoil DECIMAL(15,2) DEFAULT 0");
 
             $sql = "INSERT INTO pointages_mensuels (id_chantier, matricule, nom_monteur, mois, annee, salaire_journalier, jours_travailles, total_jours, total_salaire, avances, net_a_payer, frais_transport, frais_repas, frais_loyer, frais_gasoil) 
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
