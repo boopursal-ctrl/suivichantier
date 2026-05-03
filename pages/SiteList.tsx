@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useData } from '../contexts/DataContext';
-import { formatDate, formatCurrency, countDays, getCityName } from '../utils';
+import { formatDate, formatCurrency, countDays, countWorkDays, getCityName } from '../utils';
 import { Chantier } from '../types';
 import { Plus, Search, Grid, List, MapPin, Calendar, User, ArrowRight, X, Info, Trash2, UserCheck, HardHat, Wallet, DollarSign } from 'lucide-react';
 
