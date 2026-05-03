@@ -211,9 +211,9 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
                   .filter(c => !['transport_local', 'repas', 'hebergement', 'indemnite_deplacement', 'indemnite_repas', 'indemnite_logement', 'transport_commun'].includes(c.type_cout))
                   .reduce((sum, c) => sum + Number(c.montant_reel || 0), 0);
 
-                // On essaie de faire matcher l'ID technique (String ou Number)
-                const techId = String(chantier.id_chantier).trim();
-                const pointagesChef = (globalLaborCost || {})[techId] || 0;
+                // Recherche ultra-robuste de l'ID technique
+                const techId = String(chantier.id_chantier || '').trim();
+                const pointagesChef = globalLaborCost ? (globalLaborCost[techId] || 0) : 0;
                 
                 const budgetReelChef = totalFraisReelsHorsIndemnites + pointagesChef;
                 const hasPointage = pointagesChef > 0 || totalFraisReels > 0;

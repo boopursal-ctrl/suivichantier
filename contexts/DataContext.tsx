@@ -159,8 +159,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (Array.isArray(financeSummaryResult.data)) {
         const laborMap: { [key: string]: number } = {};
         financeSummaryResult.data.forEach((item: any) => {
-          const id = String(item.id_chantier).trim();
-          laborMap[id] = Number(item.total_main_doeuvre_reelle || 0);
+          const id = String(item.id_chantier || '').trim();
+          if (id) {
+            laborMap[id] = Number(item.total_main_doeuvre_reelle || 0);
+          }
         });
         setGlobalLaborCost(laborMap);
       }
