@@ -595,6 +595,13 @@ try {
             echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
             break;
 
+        case 'get_global_finance_summary':
+            // Calcule le total de la main d'œuvre réelle (pointages) groupé par chantier
+            $stmt = $conn->prepare("SELECT id_chantier, SUM(total_salaire) as total_main_doeuvre_reelle, SUM(total_jours) as total_jours_pointes FROM pointages_mensuels GROUP BY id_chantier");
+            $stmt->execute();
+            echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+            break;
+
         case 'save_pointages':
             $sql = "INSERT INTO pointages_mensuels (id_chantier, matricule, nom_monteur, mois, annee, salaire_journalier, jours_travailles, total_jours, total_salaire, avances, net_a_payer) 
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 

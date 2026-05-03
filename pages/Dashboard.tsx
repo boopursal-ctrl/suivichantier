@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
-import { formatCurrency, formatDate } from '../utils';
+import { formatCurrency, formatDate, cn } from '../utils';
 import {
   Briefcase,
   Users,
@@ -37,7 +37,7 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ navigateTo }) => {
-  const { chantiers, monteurs, lignesCouts, articles, mouvements } = useData();
+  const { chantiers, monteurs, lignesCouts, articles, mouvements, globalLaborCost } = useData();
   const { user } = useAuth();
   const [timeRange, setTimeRange] = useState('Mensuel');
   const [isMounted, setIsMounted] = React.useState(false);
@@ -52,14 +52,20 @@ const Dashboard: React.FC<DashboardProps> = ({ navigateTo }) => {
 
   // Finance
   const totalBudgetPrevu = activeChantiers.reduce((sum, c) => sum + Number(c.budget_prevu || 0), 0);
-  const totalDepenses = lignesCouts.reduce((sum, cout) => sum + Number(cout.montant_reel || 0), 0);
+  const totalFraisDirects = lignesCouts.reduce((sum, cout) => sum + Number(cout.montant_reel || 0), 0);
+  const totalMainDoeuvreReelle = Object.values(globalLaborCost || {}).reduce((sum, val) => sum + val, 0);
+  
+  const totalDepenses = totalFraisDirects + totalMainDoeuvreReelle;
+  const margeGlobale = totalBudgetPrevu - totalDepenses;
   const financePercent = totalBudgetPrevu > 0 ? (totalDepenses / totalBudgetPrevu) * 100 : 0;
 
   // Alerts
   const lowStockItems = articles.filter(a => a.quantite <= a.seuil_alerte);
   const budgetAlerts = chantiers.filter(c => {
-    const siteCosts = lignesCouts.filter(l => l.id_chantier === c.id_chantier).reduce((s, l) => s + Number(l.montant_reel || 0), 0);
-    return c.budget_prevu > 0 && siteCosts > c.budget_prevu * 0.9;
+    const siteFrais = lignesCouts.filter(l => l.id_chantier === c.id_chantier).reduce((s, l) => s + Number(l.montant_reel || 0), 0);
+    const siteLabor = globalLaborCost[c.id_chantier] || 0;
+    const totalSiteCost = siteFrais + siteLabor;
+    return c.budget_prevu > 0 && totalSiteCost > c.budget_prevu * 0.9;
   });
 
   // --- CHART DATA ---
@@ -156,18 +162,30 @@ const Dashboard: React.FC<DashboardProps> = ({ navigateTo }) => {
                   <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl">
                     <Wallet size={24} />
                   </div>
-                  <span className="font-semibold text-gray-400 tracking-wide uppercase text-sm">Dépenses Globales</span>
+                  <span className="font-semibold text-gray-400 tracking-wide uppercase text-sm">Coût Réel Global</span>
                 </div>
-                <div className="radial-progress text-emerald-500 text-xs font-bold" style={{ "--value": financePercent, "--size": "40px" } as any}>
-                  {financePercent.toFixed(0)}%
+                <div className={cn(
+                  "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider",
+                  margeGlobale >= 0 ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+                )}>
+                  {margeGlobale >= 0 ? 'En Profit' : 'En Perte'}
                 </div>
               </div>
               <div>
-                <h3 className="text-4xl font-black text-gray-900 tracking-tight">{formatCurrency(totalDepenses)}</h3>
-                <div className="mt-2 w-full bg-gray-100 rounded-full h-2 overflow-hidden">
-                  <div className="bg-gradient-to-r from-emerald-400 to-teal-500 h-full rounded-full" style={{ width: `${Math.min(financePercent, 100)}%` }}></div>
+                <div className="flex items-baseline gap-2">
+                  <h3 className="text-4xl font-black text-gray-900 tracking-tight">{formatCurrency(totalDepenses)}</h3>
+                  <span className="text-gray-400 text-sm font-medium">/ {formatCurrency(totalBudgetPrevu)}</span>
                 </div>
-                <p className="text-xs text-gray-400 mt-2 font-medium">Budget consommé à {financePercent.toFixed(1)}%</p>
+                <div className="mt-4 w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+                  <div className={cn(
+                    "h-full rounded-full transition-all duration-1000",
+                    financePercent > 100 ? "bg-red-500" : financePercent > 85 ? "bg-orange-400" : "bg-emerald-500"
+                  )} style={{ width: `${Math.min(financePercent, 100)}%` }}></div>
+                </div>
+                <div className="flex justify-between mt-2">
+                  <p className="text-xs text-gray-400 font-medium">Marge: <span className={margeGlobale >= 0 ? "text-emerald-600" : "text-red-600"}>{formatCurrency(margeGlobale)}</span></p>
+                  <p className="text-xs text-gray-400 font-bold">{financePercent.toFixed(1)}%</p>
+                </div>
               </div>
             </div>
           </div>

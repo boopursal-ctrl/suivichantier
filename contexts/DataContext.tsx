@@ -51,6 +51,8 @@ interface DataContextType {
   addInterimaire: (i: Interimaire) => Promise<void>;
   updateInterimaire: (i: Interimaire) => Promise<void>;
   logAction: (action: string, entityType: 'chantier' | 'resource' | 'finance' | 'system', entityId: string, details?: any) => Promise<void>;
+  
+  globalLaborCost: { [id_chantier: string]: number };
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -74,6 +76,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [articles, setArticles] = useState<ArticleStock[]>([]);
   const [mouvements, setMouvements] = useState<MouvementStock[]>([]);
   const [interimaires, setInterimaires] = useState<Interimaire[]>([]);
+  const [globalLaborCost, setGlobalLaborCost] = useState<{ [id_chantier: string]: number }>({});
 
   // Charger toutes les données
   const fetchAllData = async () => {
@@ -99,7 +102,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         articlesResult,
         mouvementsResult,
         profilesResult,
-        interimairesResult
+        interimairesResult,
+        financeSummaryResult
       ] = await Promise.all([
         mysqlService.query('get_monteurs')
           .then(data => { debug('✅ Monteurs loaded (MySQL)'); return { data, error: null }; })
@@ -118,7 +122,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         mysqlService.query('get_stock').then(data => ({ data, error: null })).catch(() => ({ data: [], error: null })),
         mysqlService.query('get_mouvements').then(data => ({ data, error: null })).catch(() => ({ data: [], error: null })),
         mysqlService.query('get_users').then(data => ({ data, error: null })).catch(() => ({ data: [], error: null })),
-        mysqlService.query('get_interimaires').then(data => ({ data, error: null })).catch(() => ({ data: [], error: null }))
+        mysqlService.query('get_interimaires').then(data => ({ data, error: null })).catch(() => ({ data: [], error: null })),
+        mysqlService.query('get_global_finance_summary').then(data => ({ data, error: null })).catch(() => ({ data: [], error: null }))
       ]);
 
       debug('📊 Data results received, processing...');
@@ -149,7 +154,15 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setVersements(Array.isArray(versementsResult.data) ? versementsResult.data : []);
       setArticles(Array.isArray(articlesResult.data) ? articlesResult.data : []);
       setMouvements(Array.isArray(mouvementsResult.data) ? mouvementsResult.data : []);
-      setInterimaires(Array.isArray(interimairesResult.data) ? interimairesResult.data : []);
+
+      // Traitement du résumé financier
+      if (Array.isArray(financeSummaryResult.data)) {
+        const laborMap: { [key: string]: number } = {};
+        financeSummaryResult.data.forEach((item: any) => {
+          laborMap[item.id_chantier] = Number(item.total_main_doeuvre_reelle || 0);
+        });
+        setGlobalLaborCost(laborMap);
+      }
 
       // Transformer les profiles en users avec vérification
       if (Array.isArray(profilesResult.data)) {

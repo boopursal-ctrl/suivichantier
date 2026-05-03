@@ -10,7 +10,7 @@ interface SiteListProps {
 
 const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
   // ... existing SiteList logic ...
-  const { chantiers, clients, addChantier, deleteChantier, monteurs, lignesCouts, versements, affectations } = useData();
+  const { chantiers, clients, addChantier, deleteChantier, monteurs, lignesCouts, versements, affectations, globalLaborCost } = useData();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('en_instance');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -178,28 +178,32 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
                 // 1. Dépenses (lignesCouts)
                 const costs = lignesCouts.filter(c => c.id_chantier === chantier.id_chantier);
                 const totalDepenses = costs.reduce((sum, c) => sum + Number(c.montant_reel || 0), 0);
-
-                // 2. Main d'œuvre Permanents (affectations)
                 const affectationsChantier = affectations.filter(a => a.id_chantier === chantier.id_chantier);
-                const totalMainOeuvrePermanents = affectationsChantier.reduce((sum, aff) => {
-                  const dateDebut = aff.date_entree;
-                  const dateFin = aff.date_sortie || new Date().toISOString().split('T')[0];
-                  // Use countDays for inclusive calculation matching SiteDetail
-                  const joursTravailes = Math.max(0, countDays(dateDebut, dateFin) - aff.jours_arret);
-                  return sum + (Number(aff.salaire_jour || 0) * joursTravailes);
-                }, 0);
 
-                // 3. Main d'œuvre Locaux/Intérimaires
-                const totalMainOeuvreLocaux = (chantier.monteurs_locaux || []).reduce((sum, ml) => {
-                  // Use dynamic date calculation to match SiteDetail logic
-                  const startDate = ml.date_debut || chantier.date_debut || new Date().toISOString().split('T')[0];
-                  const endDate = ml.date_fin || chantier.date_fin || new Date().toISOString().split('T')[0];
-                  const days = Math.max(0, countDays(startDate, endDate));
-                  return sum + (Number(ml.salaire_jour || 0) * days);
-                }, 0);
+                // 2. Main d'œuvre Réelle (Issue des Pointages)
+                const realLaborCost = (globalLaborCost || {})[chantier.id_chantier] || 0;
 
-                // Total Coûts Engagés = Dépenses + Main d'œuvre
-                const totalCoutsEngages = totalDepenses + totalMainOeuvrePermanents + totalMainOeuvreLocaux;
+                // 3. Fallback: Estimation théorique si aucun pointage n'existe encore
+                let estimatedLabor = 0;
+                if (realLaborCost === 0) {
+                  const totalMainOeuvrePermanents = affectationsChantier.reduce((sum, aff) => {
+                    const dateDebut = aff.date_entree;
+                    const dateFin = aff.date_sortie || new Date().toISOString().split('T')[0];
+                    const joursTravailes = Math.max(0, countDays(dateDebut, dateFin) - aff.jours_arret);
+                    return sum + (Number(aff.salaire_jour || 0) * joursTravailes);
+                  }, 0);
+
+                  const totalMainOeuvreLocaux = (chantier.monteurs_locaux || []).reduce((sum, ml) => {
+                    const startDate = ml.date_debut || chantier.date_debut || new Date().toISOString().split('T')[0];
+                    const endDate = ml.date_fin || chantier.date_fin || new Date().toISOString().split('T')[0];
+                    const days = Math.max(0, countDays(startDate, endDate));
+                    return sum + (Number(ml.salaire_jour || 0) * days);
+                  }, 0);
+                  estimatedLabor = totalMainOeuvrePermanents + totalMainOeuvreLocaux;
+                }
+
+                // Total Coûts Engagés = Dépenses + (Réel ou Estimation)
+                const totalCoutsEngages = totalDepenses + (realLaborCost > 0 ? realLaborCost : estimatedLabor);
 
                 const acomptes = versements.filter(v => v.id_chantier === chantier.id_chantier);
                 const totalAcomptes = acomptes.reduce((sum, v) => sum + Number(v.montant || 0), 0);
@@ -393,25 +397,63 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
                     <tr>
                       <th className="px-6 py-4">Réf</th>
                       <th className="px-6 py-4">Client</th>
-                      <th className="px-6 py-4">Sous Chef de Chantier</th>
-                      <th className="px-6 py-4">Budget</th>
+                      <th className="px-6 py-4">Budget Prévu</th>
+                      <th className="px-6 py-4">Coût Réel</th>
+                      <th className="px-6 py-4">Marge / Solde</th>
                       <th className="px-6 py-4 text-right">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {filteredChantiers.map(chantier => (
-                      <tr key={chantier.id_chantier} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 font-bold text-gray-900">{chantier.ref_chantier}</td>
-                        <td className="px-6 py-4">{chantier.nom_client}</td>
-                        <td className="px-6 py-4">{chantier.responsable_chantier}</td>
-                        <td className="px-6 py-4">{formatCurrency(chantier.budget_prevu)}</td>
-                        <td className="px-6 py-4 text-right">
-                          <button onClick={() => onSelectSite(chantier.id_chantier)} className="text-red-700 font-medium hover:underline">
-                            Ouvrir
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {filteredChantiers.map(chantier => {
+                       // Calculs identiques au mode Grid pour cohérence
+                       const costs = lignesCouts.filter(c => c.id_chantier === chantier.id_chantier);
+                       const totalDepenses = costs.reduce((sum, c) => sum + Number(c.montant_reel || 0), 0);
+                       const realLaborCost = (globalLaborCost || {})[chantier.id_chantier] || 0;
+                       
+                       let estimatedLabor = 0;
+                       if (realLaborCost === 0) {
+                         const affectationsChantier = affectations.filter(a => a.id_chantier === chantier.id_chantier);
+                         const totalMainOeuvrePermanents = affectationsChantier.reduce((sum, aff) => {
+                           const jours = Math.max(0, countDays(aff.date_entree, aff.date_sortie || new Date().toISOString().split('T')[0]) - aff.jours_arret);
+                           return sum + (Number(aff.salaire_jour || 0) * jours);
+                         }, 0);
+                         const totalMainOeuvreLocaux = (chantier.monteurs_locaux || []).reduce((sum, ml) => {
+                           const days = Math.max(0, countDays(ml.date_debut || chantier.date_debut || new Date().toISOString().split('T')[0], ml.date_fin || chantier.date_fin || new Date().toISOString().split('T')[0]));
+                           return sum + (Number(ml.salaire_jour || 0) * days);
+                         }, 0);
+                         estimatedLabor = totalMainOeuvrePermanents + totalMainOeuvreLocaux;
+                       }
+                       const totalReel = totalDepenses + (realLaborCost > 0 ? realLaborCost : estimatedLabor);
+                       const marge = Number(chantier.budget_prevu || 0) - totalReel;
+
+                       return (
+                        <tr key={chantier.id_chantier} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-6 py-4">
+                            <div className="font-bold text-gray-900">{chantier.ref_chantier}</div>
+                            <div className="text-[10px] text-gray-400 uppercase tracking-tighter">#{chantier.numero_ordre}</div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="font-medium text-gray-700">{chantier.nom_client}</div>
+                            <div className="text-xs text-gray-400">{getCityName(chantier.ville_code)}</div>
+                          </td>
+                          <td className="px-6 py-4 font-semibold text-gray-600">{formatCurrency(chantier.budget_prevu)}</td>
+                          <td className="px-6 py-4">
+                            <div className="font-bold text-gray-900">{formatCurrency(totalReel)}</div>
+                            <div className="text-[10px] text-indigo-500 font-bold">{realLaborCost > 0 ? 'BASÉ SUR POINTAGE' : 'ESTIMATION'}</div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`px-3 py-1 rounded-full text-xs font-black ${marge >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                              {formatCurrency(marge)}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <button onClick={() => onSelectSite(chantier.id_chantier)} className="p-2 bg-slate-100 hover:bg-red-700 hover:text-white rounded-lg transition-all">
+                              <ArrowRight size={18} />
+                            </button>
+                          </td>
+                        </tr>
+                       );
+                    })}
                   </tbody>
                 </table>
               </div>
