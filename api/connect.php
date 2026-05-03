@@ -610,7 +610,10 @@ try {
                     jours_travailles=VALUES(jours_travailles), total_jours=VALUES(total_jours), 
                     total_salaire=VALUES(total_salaire), net_a_payer=VALUES(net_a_payer)";
             $stmt = $conn->prepare($sql);
+            
+            $id_chantier_unique = null;
             foreach ($data as $p) {
+                if (!$id_chantier_unique) $id_chantier_unique = $p['id_chantier'];
                 $stmt->execute([
                     $p['id_chantier'],
                     $p['matricule'],
@@ -625,7 +628,30 @@ try {
                     $p['net_a_payer']
                 ]);
             }
-            echo json_encode(["status" => "success"]);
+
+            // === SYNCHRONISATION DES FRAIS HORS VILLE AVEC LE POINTAGE ===
+            if ($id_chantier_unique) {
+                // 1. Remettre à 0 le montant réel des indemnités pour ce chantier
+                $stmt_reset = $conn->prepare("UPDATE lignes_couts SET montant_reel = 0 WHERE id_chantier = ? AND type_cout IN ('transport_local', 'repas', 'hebergement', 'indemnite_deplacement', 'indemnite_repas', 'indemnite_logement')");
+                $stmt_reset->execute([$id_chantier_unique]);
+
+                // 2. Mettre à jour le montant réel en fonction de la somme des jours pointés
+                $sql_update_frais = "
+                    UPDATE lignes_couts lc
+                    JOIN (
+                        SELECT id_chantier, matricule, SUM(total_jours) as sum_jours 
+                        FROM pointages_mensuels 
+                        WHERE id_chantier = ?
+                        GROUP BY id_chantier, matricule
+                    ) p ON lc.id_chantier = p.id_chantier AND lc.related_monteur_id = p.matricule
+                    SET lc.montant_reel = p.sum_jours * lc.cout_unitaire
+                    WHERE lc.type_cout IN ('transport_local', 'repas', 'hebergement', 'indemnite_deplacement', 'indemnite_repas', 'indemnite_logement')
+                ";
+                $stmt_update = $conn->prepare($sql_update_frais);
+                $stmt_update->execute([$id_chantier_unique]);
+            }
+
+            echo json_encode(['status' => 'success']);
             break;
 
         // --- USERS ---
