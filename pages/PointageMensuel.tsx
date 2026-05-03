@@ -396,7 +396,11 @@ const PointageMensuel = () => {
                     total_jours: total_jours,
                     total_salaire: total_salaire,
                     avances: montant_avances,
-                    net_a_payer: net_a_payer
+                    net_a_payer: net_a_payer,
+                    frais_transport: Number(fraisTransport[matricule] || 0),
+                    frais_repas: Number(fraisRepas[matricule] || 0),
+                    frais_loyer: Number(fraisLoyer[matricule] || 0),
+                    frais_gasoil: Number(fraisGasoil[matricule] || 0)
                 });
             }
 

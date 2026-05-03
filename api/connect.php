@@ -596,24 +596,38 @@ try {
             break;
 
         case 'get_global_finance_summary':
-            // Calcule le total de la main d'œuvre réelle (pointages) groupé par chantier
-            $stmt = $conn->prepare("SELECT id_chantier, SUM(total_salaire) as total_main_doeuvre_reelle, SUM(total_jours) as total_jours_pointes FROM pointages_mensuels GROUP BY id_chantier");
+            // Calcule le total de la main d'œuvre réelle (salaires + frais pointés par le chef) groupé par chantier
+            $stmt = $conn->prepare("
+                SELECT id_chantier, 
+                SUM(total_salaire) as total_salaires,
+                SUM(COALESCE(frais_transport, 0) + COALESCE(frais_repas, 0) + COALESCE(frais_loyer, 0) + COALESCE(frais_gasoil, 0)) as total_frais_pointes,
+                SUM(total_salaire + COALESCE(frais_transport, 0) + COALESCE(frais_repas, 0) + COALESCE(frais_loyer, 0) + COALESCE(frais_gasoil, 0)) as total_main_doeuvre_reelle,
+                SUM(total_jours) as total_jours_pointes 
+                FROM pointages_mensuels 
+                GROUP BY id_chantier
+            ");
             $stmt->execute();
             echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
             break;
 
         case 'save_pointages':
-            $sql = "INSERT INTO pointages_mensuels (id_chantier, matricule, nom_monteur, mois, annee, salaire_journalier, jours_travailles, total_jours, total_salaire, avances, net_a_payer) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
+            $conn->exec("ALTER TABLE pointages_mensuels 
+                         ADD COLUMN IF NOT EXISTS frais_transport DECIMAL(15,2) DEFAULT 0,
+                         ADD COLUMN IF NOT EXISTS frais_repas DECIMAL(15,2) DEFAULT 0,
+                         ADD COLUMN IF NOT EXISTS frais_loyer DECIMAL(15,2) DEFAULT 0,
+                         ADD COLUMN IF NOT EXISTS frais_gasoil DECIMAL(15,2) DEFAULT 0");
+
+            $sql = "INSERT INTO pointages_mensuels (id_chantier, matricule, nom_monteur, mois, annee, salaire_journalier, jours_travailles, total_jours, total_salaire, avances, net_a_payer, frais_transport, frais_repas, frais_loyer, frais_gasoil) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
                     ON DUPLICATE KEY UPDATE 
                     nom_monteur=VALUES(nom_monteur), salaire_journalier=VALUES(salaire_journalier), 
                     jours_travailles=VALUES(jours_travailles), total_jours=VALUES(total_jours), 
-                    total_salaire=VALUES(total_salaire), net_a_payer=VALUES(net_a_payer)";
+                    total_salaire=VALUES(total_salaire), net_a_payer=VALUES(net_a_payer),
+                    frais_transport=VALUES(frais_transport), frais_repas=VALUES(frais_repas),
+                    frais_loyer=VALUES(frais_loyer), frais_gasoil=VALUES(frais_gasoil)";
             $stmt = $conn->prepare($sql);
             
-            $id_chantier_unique = null;
             foreach ($data as $p) {
-                if (!$id_chantier_unique) $id_chantier_unique = $p['id_chantier'];
                 $stmt->execute([
                     $p['id_chantier'],
                     $p['matricule'],
@@ -624,31 +638,13 @@ try {
                     json_encode($p['jours_travailles']),
                     $p['total_jours'],
                     $p['total_salaire'],
-                    $p['avances'],
-                    $p['net_a_payer']
+                    $p['avances'] ?? 0,
+                    $p['net_a_payer'],
+                    $p['frais_transport'] ?? 0,
+                    $p['frais_repas'] ?? 0,
+                    $p['frais_loyer'] ?? 0,
+                    $p['frais_gasoil'] ?? 0
                 ]);
-            }
-
-            // === SYNCHRONISATION DES FRAIS HORS VILLE AVEC LE POINTAGE ===
-            if ($id_chantier_unique) {
-                // 1. Remettre à 0 le montant réel des indemnités pour ce chantier
-                $stmt_reset = $conn->prepare("UPDATE lignes_couts SET montant_reel = 0 WHERE id_chantier = ? AND type_cout IN ('transport_local', 'repas', 'hebergement', 'indemnite_deplacement', 'indemnite_repas', 'indemnite_logement')");
-                $stmt_reset->execute([$id_chantier_unique]);
-
-                // 2. Mettre à jour le montant réel en fonction de la somme des jours pointés
-                $sql_update_frais = "
-                    UPDATE lignes_couts lc
-                    JOIN (
-                        SELECT id_chantier, matricule, SUM(total_jours) as sum_jours 
-                        FROM pointages_mensuels 
-                        WHERE id_chantier = ?
-                        GROUP BY id_chantier, matricule
-                    ) p ON lc.id_chantier = p.id_chantier AND lc.related_monteur_id = p.matricule
-                    SET lc.montant_reel = p.sum_jours * lc.cout_unitaire
-                    WHERE lc.type_cout IN ('transport_local', 'repas', 'hebergement', 'indemnite_deplacement', 'indemnite_repas', 'indemnite_logement')
-                ";
-                $stmt_update = $conn->prepare($sql_update_frais);
-                $stmt_update->execute([$id_chantier_unique]);
             }
 
             echo json_encode(['status' => 'success']);

@@ -203,13 +203,17 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
 
                 const totalSalairesPlanning = salPlanifiesPerm + salPlanifiesLocaux;
 
-                // BUDGET PRÉVU = Total Coûts Engagés (comme SiteDetail)
+                // BUDGET PRÉVU = Tous les Frais (y compris Indemnités) + Salaires planifiés
                 const budgetPrevuCalcule = totalFraisReels + totalSalairesPlanning;
 
-                // BUDGET RÉEL = Pointages Chef (pointages_mensuels) + Frais Réels (inclut indem. hors ville)
-                const salairesPointes = (globalLaborCost || {})[chantier.id_chantier] || 0;
-                const budgetReelChef = totalFraisReels + salairesPointes;
-                const hasPointage = salairesPointes > 0 || totalFraisReels > 0;
+                // BUDGET RÉEL = Pointages Chef (Salaires + Frais) + Frais Réels HORS Indemnités (ex: Achat Matériel)
+                const totalFraisReelsHorsIndemnites = costs
+                  .filter(c => !['transport_local', 'repas', 'hebergement', 'indemnite_deplacement', 'indemnite_repas', 'indemnite_logement', 'transport_commun'].includes(c.type_cout))
+                  .reduce((sum, c) => sum + Number(c.montant_reel || 0), 0);
+
+                const pointagesChef = (globalLaborCost || {})[chantier.id_chantier] || 0; // Contient Salaires + Frais pointés
+                const budgetReelChef = totalFraisReelsHorsIndemnites + pointagesChef;
+                const hasPointage = pointagesChef > 0 || totalFraisReels > 0;
 
                 // Avances client
                 const acomptes = versements.filter(v => v.id_chantier === chantier.id_chantier);
@@ -464,9 +468,14 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
                        const totalSalaires = salPermanents + salLocaux;
 
                        const budgetPrevuCalcule = totalFraisReels + totalSalaires;
-                       const salairesPointes = (globalLaborCost || {})[chantier.id_chantier] || 0;
-                       const budgetReelChef = totalFraisReels + salairesPointes;
-                       const hasPointageList = salairesPointes > 0 || totalFraisReels > 0;
+
+                       const totalFraisReelsHorsIndemnites = costs
+                         .filter(c => !['transport_local', 'repas', 'hebergement', 'indemnite_deplacement', 'indemnite_repas', 'indemnite_logement', 'transport_commun'].includes(c.type_cout))
+                         .reduce((sum, c) => sum + Number(c.montant_reel || 0), 0);
+
+                       const pointagesChef = (globalLaborCost || {})[chantier.id_chantier] || 0;
+                       const budgetReelChef = totalFraisReelsHorsIndemnites + pointagesChef;
+                       const hasPointageList = pointagesChef > 0 || totalFraisReels > 0;
 
                        return (
                          <tr key={chantier.id_chantier} className="hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0 group">
