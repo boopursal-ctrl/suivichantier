@@ -206,9 +206,10 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
                 // BUDGET PRÉVU = Total Coûts Engagés (comme SiteDetail)
                 const budgetPrevuCalcule = totalFraisReels + totalSalairesPlanning;
 
-                // BUDGET RÉEL = Pointages Chef (pointages_mensuels)
-                const budgetReelChef = (globalLaborCost || {})[chantier.id_chantier] || 0;
-                const hasPointage = budgetReelChef > 0;
+                // BUDGET RÉEL = Pointages Chef (pointages_mensuels) + Frais Réels (inclut indem. hors ville)
+                const salairesPointes = (globalLaborCost || {})[chantier.id_chantier] || 0;
+                const budgetReelChef = totalFraisReels + salairesPointes;
+                const hasPointage = salairesPointes > 0 || totalFraisReels > 0;
 
                 // Avances client
                 const acomptes = versements.filter(v => v.id_chantier === chantier.id_chantier);
@@ -463,8 +464,9 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
                        const totalSalaires = salPermanents + salLocaux;
 
                        const budgetPrevuCalcule = totalFraisReels + totalSalaires;
-                       const budgetReelChef = (globalLaborCost || {})[chantier.id_chantier] || 0;
-                       const hasPointageList = budgetReelChef > 0;
+                       const salairesPointes = (globalLaborCost || {})[chantier.id_chantier] || 0;
+                       const budgetReelChef = totalFraisReels + salairesPointes;
+                       const hasPointageList = salairesPointes > 0 || totalFraisReels > 0;
 
                        return (
                          <tr key={chantier.id_chantier} className="hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0 group">
