@@ -173,36 +173,50 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
           {viewMode === 'grid' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredChantiers.map((chantier) => {
-                // 1. Dépenses (Frais Directs)
+                // ====================================================
+                // BUDGET PRÉVU = Ce qui était planifié au démarrage
+                // Équipe (salaires théoriques sur la durée du chantier)
+                // ====================================================
                 const costs = lignesCouts.filter(c => c.id_chantier === chantier.id_chantier);
-                const totalFraisReels = costs.reduce((sum, c) => sum + Number(c.montant_reel || 0), 0);
                 const totalFraisPrevus = costs.reduce((sum, c) => sum + Number(c.montant_prevu || 0), 0);
-                
+
                 const affectationsChantier = affectations.filter(a => a.id_chantier === chantier.id_chantier);
+                const MGMT = [100, 101, 102, 103, 104, 157];
 
-                // 2. Main d'œuvre Réelle (Issue des Pointages)
-                const realLaborCost = (globalLaborCost || {})[chantier.id_chantier] || 0;
+                const totalSalairesPrevusPermanents = affectationsChantier
+                  .filter(a => !MGMT.includes(Number(a.matricule)))
+                  .reduce((sum, aff) => {
+                    const dateFin = aff.date_sortie || chantier.date_fin || new Date().toISOString().split('T')[0];
+                    const jours = Math.max(0, countWorkDays(aff.date_entree, dateFin) - Number(aff.jours_arret || 0));
+                    return sum + (Number(aff.salaire_jour || 0) * jours);
+                  }, 0);
 
-                // 3. Main d'œuvre Prévue (Théorique)
-                const totalLaborPrevuPermanents = affectationsChantier.reduce((sum, aff) => {
-                  const dateDebut = aff.date_entree;
-                  const dateFin = aff.date_sortie || chantier.date_fin || new Date().toISOString().split('T')[0];
-                  const joursTravailes = Math.max(0, countWorkDays(dateDebut, dateFin) - aff.jours_arret);
-                  return sum + (Number(aff.salaire_jour || 0) * joursTravailes);
-                }, 0);
-
-                const totalLaborPrevuLocaux = (chantier.monteurs_locaux || []).reduce((sum, ml) => {
+                const totalSalairesPrevusLocaux = (chantier.monteurs_locaux || []).reduce((sum, ml) => {
                   const startDate = ml.date_debut || chantier.date_debut || new Date().toISOString().split('T')[0];
                   const endDate = ml.date_fin || chantier.date_fin || new Date().toISOString().split('T')[0];
                   const days = Math.max(0, countWorkDays(startDate, endDate));
                   return sum + (Number(ml.salaire_jour || 0) * days);
                 }, 0);
 
-                const budgetPrevuCalcule = totalFraisPrevus + totalLaborPrevuPermanents + totalLaborPrevuLocaux;
-                const coutReelGlobal = totalFraisReels + (realLaborCost > 0 ? realLaborCost : (totalLaborPrevuPermanents + totalLaborPrevuLocaux));
+                // Budget Prévu Final
+                const budgetPrevuCalcule = totalFraisPrevus + totalSalairesPrevusPermanents + totalSalairesPrevusLocaux;
 
+                // ====================================================
+                // COÛT RÉEL = Ce que le chef de chantier a réellement pointé
+                // Pointage Mensuel + Frais réels payés
+                // ====================================================
+                const totalFraisReels = costs.reduce((sum, c) => sum + Number(c.montant_reel || 0), 0);
+                // globalLaborCost vient de get_global_finance_summary → SUM(total_salaire) par chantier
+                const salaireReelPointe = (globalLaborCost || {})[chantier.id_chantier] || 0;
+
+                // Coût Réel Final
+                const coutReelGlobal = totalFraisReels + salaireReelPointe;
+
+                // Avances client
                 const acomptes = versements.filter(v => v.id_chantier === chantier.id_chantier);
                 const totalAcomptes = acomptes.reduce((sum, v) => sum + Number(v.montant || 0), 0);
+                // Indique si le chef a déjà pointé sur ce chantier
+                const hasPointage = salaireReelPointe > 0;
 
                 return (
                   <div
@@ -307,53 +321,55 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
                           <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
                             <p className="text-[10px] text-gray-400 font-bold mb-1 uppercase">Budget Prévu</p>
                             <p className="text-lg font-bold text-gray-700">{formatCurrency(budgetPrevuCalcule)}</p>
+                            <p className="text-[9px] text-gray-400 mt-1">Équipe + Frais planifiés</p>
                           </div>
                           <div className={cn(
                             "rounded-lg p-3 border",
+                            !hasPointage ? "bg-gray-50 border-gray-100" :
                             coutReelGlobal > budgetPrevuCalcule ? "bg-red-50 border-red-100" : "bg-blue-50 border-blue-100"
                           )}>
                             <p className={cn(
                               "text-[10px] font-bold mb-1 uppercase",
+                              !hasPointage ? "text-gray-400" :
                               coutReelGlobal > budgetPrevuCalcule ? "text-red-700" : "text-blue-700"
                             )}>Coût Réel</p>
                             <p className={cn(
                               "text-lg font-bold",
+                              !hasPointage ? "text-gray-400" :
                               coutReelGlobal > budgetPrevuCalcule ? "text-red-700" : "text-blue-700"
-                            )}>{formatCurrency(coutReelGlobal)}</p>
+                            )}>{hasPointage ? formatCurrency(coutReelGlobal) : '–'}</p>
+                            <p className="text-[9px] mt-1 text-gray-400">
+                              {hasPointage ? 'Pointage Chef + Frais réels' : 'En attente de pointage'}
+                            </p>
                           </div>
                         </div>
 
-                        <div className="flex gap-3">
-                          <div className="flex-1 bg-green-50 rounded-lg p-2 border border-green-100 text-center">
-                            <p className="text-[10px] text-green-700 font-bold uppercase">Avance</p>
+                        {/* Avance + Reste à verser */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="bg-green-50 rounded-lg p-2 border border-green-100 text-center">
+                            <p className="text-[10px] text-green-700 font-bold uppercase">Avance Client</p>
                             <p className="text-md font-bold text-green-700">{formatCurrency(totalAcomptes)}</p>
                           </div>
                           <div className={cn(
-                            "flex-1 rounded-lg p-2 border text-center",
-                            (budgetPrevuCalcule - coutReelGlobal) >= 0 ? "bg-emerald-50 border-emerald-100" : "bg-red-50 border-red-100"
+                            "rounded-lg p-2 border text-center",
+                            (coutReelGlobal - totalAcomptes) > 0 ? "bg-amber-50 border-amber-100" : "bg-emerald-50 border-emerald-100"
                           )}>
                             <p className={cn(
                               "text-[10px] font-bold uppercase",
-                              (budgetPrevuCalcule - coutReelGlobal) >= 0 ? "text-emerald-700" : "text-red-700"
-                            )}>Marge</p>
+                              (coutReelGlobal - totalAcomptes) > 0 ? "text-amber-700" : "text-emerald-700"
+                            )}>Reste à verser</p>
                             <p className={cn(
                               "text-md font-bold",
-                              (budgetPrevuCalcule - coutReelGlobal) >= 0 ? "text-emerald-700" : "text-red-700"
-                            )}>{formatCurrency(budgetPrevuCalcule - coutReelGlobal)}</p>
+                              (coutReelGlobal - totalAcomptes) > 0 ? "text-amber-700" : "text-emerald-700"
+                            )}>{formatCurrency(coutReelGlobal - totalAcomptes)}</p>
                           </div>
                         </div>
 
-
-
-                        {/* Reste à verser (Solde Client) */}
-                        <div className={cn(
-                          "p-2 rounded-lg text-center text-[10px] font-bold border uppercase tracking-wider",
-                          (coutReelGlobal - totalAcomptes) > 0 ? "bg-amber-50 text-amber-700 border-amber-100" : "bg-emerald-50 text-emerald-700 border-emerald-100"
-                        )}>
-                          Reste à verser: {formatCurrency(coutReelGlobal - totalAcomptes)}
                         </div>
+                      </div>
 
-                        {/* Avancement (Calculé sur le temps écoulé si non défini manuel) */}
+                        {/* Avancement */}
+
                         {(() => {
                           const progressTime = (() => {
                             if (!chantier.date_debut || !chantier.date_fin) return 0;
@@ -431,30 +447,34 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {filteredChantiers.map(chantier => {
-                       // 1. Dépenses (Frais Directs)
+                       // ====================================================
+                       // BUDGET PRÉVU = Planning (Équipe + Frais prévus)
+                       // ====================================================
                        const costs = lignesCouts.filter(c => c.id_chantier === chantier.id_chantier);
-                       const totalFraisReels = costs.reduce((sum, c) => sum + Number(c.montant_reel || 0), 0);
                        const totalFraisPrevus = costs.reduce((sum, c) => sum + Number(c.montant_prevu || 0), 0);
+                       const totalFraisReels = costs.reduce((sum, c) => sum + Number(c.montant_reel || 0), 0);
 
-                       // 2. Main d'œuvre Réelle (Pointages)
-                       const realLaborCost = (globalLaborCost || {})[chantier.id_chantier] || 0;
-                       
-                       // 3. Main d'œuvre Prévue (Planning)
                        const affectationsChantier = affectations.filter(a => a.id_chantier === chantier.id_chantier);
-                       const totalLaborPrevuPermanents = affectationsChantier.reduce((sum, aff) => {
-                         const jours = Math.max(0, countWorkDays(aff.date_entree, aff.date_sortie || chantier.date_fin || new Date().toISOString().split('T')[0]) - aff.jours_arret);
-                         return sum + (Number(aff.salaire_jour || 0) * jours);
-                       }, 0);
-
-                       const totalLaborPrevuLocaux = (chantier.monteurs_locaux || []).reduce((sum, ml) => {
-                         const startDate = ml.date_debut || chantier.date_debut || new Date().toISOString().split('T')[0];
-                         const endDate = ml.date_fin || chantier.date_fin || new Date().toISOString().split('T')[0];
-                         const days = Math.max(0, countWorkDays(startDate, endDate));
+                       const MGMT_LIST = [100, 101, 102, 103, 104, 157];
+                       const salairesPrevusPermanents = affectationsChantier
+                         .filter(a => !MGMT_LIST.includes(Number(a.matricule)))
+                         .reduce((sum, aff) => {
+                           const dateFin = aff.date_sortie || chantier.date_fin || new Date().toISOString().split('T')[0];
+                           const jours = Math.max(0, countWorkDays(aff.date_entree, dateFin) - Number(aff.jours_arret || 0));
+                           return sum + (Number(aff.salaire_jour || 0) * jours);
+                         }, 0);
+                       const salairesPrevusLocaux = (chantier.monteurs_locaux || []).reduce((sum, ml) => {
+                         const days = Math.max(0, countWorkDays(ml.date_debut || chantier.date_debut || new Date().toISOString().split('T')[0], ml.date_fin || chantier.date_fin || new Date().toISOString().split('T')[0]));
                          return sum + (Number(ml.salaire_jour || 0) * days);
                        }, 0);
+                       const budgetPrevuCalcule = totalFraisPrevus + salairesPrevusPermanents + salairesPrevusLocaux;
 
-                       const budgetPrevuCalcule = totalFraisPrevus + totalLaborPrevuPermanents + totalLaborPrevuLocaux;
-                       const coutReelGlobal = totalFraisReels + (realLaborCost > 0 ? realLaborCost : (totalLaborPrevuPermanents + totalLaborPrevuLocaux));
+                       // ====================================================
+                       // COÛT RÉEL = Pointages Mensuels + Frais réels
+                       // ====================================================
+                       const salaireReelPointe = (globalLaborCost || {})[chantier.id_chantier] || 0;
+                       const coutReelGlobal = totalFraisReels + salaireReelPointe;
+                       const hasPointageList = salaireReelPointe > 0;
 
                        return (
                          <tr key={chantier.id_chantier} className="hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0 group">
@@ -465,14 +485,21 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
                              </div>
                            </td>
                            <td className="px-6 py-4 font-semibold text-gray-600">{formatCurrency(budgetPrevuCalcule)}</td>
-                           <td className="px-6 py-4 font-black text-gray-900">{formatCurrency(coutReelGlobal)}</td>
                            <td className="px-6 py-4">
-                             <span className={cn(
-                               "px-3 py-1 rounded-full text-xs font-black uppercase",
-                               (budgetPrevuCalcule - coutReelGlobal) >= 0 ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
-                             )}>
-                               {formatCurrency(budgetPrevuCalcule - coutReelGlobal)}
-                             </span>
+                             <div className="font-bold text-gray-900">{hasPointageList ? formatCurrency(coutReelGlobal) : '–'}</div>
+                             <div className="text-[10px] text-indigo-500 font-bold mt-0.5">{hasPointageList ? 'POINTAGE CHEF' : 'EN ATTENTE'}</div>
+                           </td>
+                           <td className="px-6 py-4">
+                             {hasPointageList ? (
+                               <span className={cn(
+                                 "px-3 py-1 rounded-full text-xs font-black uppercase",
+                                 (budgetPrevuCalcule - coutReelGlobal) >= 0 ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+                               )}>
+                                 {formatCurrency(budgetPrevuCalcule - coutReelGlobal)}
+                               </span>
+                             ) : (
+                               <span className="px-3 py-1 rounded-full text-xs font-black uppercase bg-gray-100 text-gray-400">–</span>
+                             )}
                            </td>
                            <td className="px-6 py-4 text-right">
                             <button onClick={() => onSelectSite(chantier.id_chantier)} className="p-2 bg-slate-100 hover:bg-red-700 hover:text-white rounded-lg transition-all">
