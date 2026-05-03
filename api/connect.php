@@ -610,12 +610,17 @@ try {
             $stmt->execute();
             $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
-            // Nettoyage des IDs en sortie pour assurer la correspondance avec le Frontend
-            foreach ($results as &$r) {
-                $r['id_chantier'] = trim($r['id_chantier']);
+            // Nettoyage et sécurisation des IDs
+            $cleanedResults = [];
+            foreach ($results as $r) {
+                if (isset($r['id_chantier'])) {
+                    $id = trim((string)$r['id_chantier']);
+                    $r['id_chantier'] = $id;
+                    $cleanedResults[] = $r;
+                }
             }
             
-            echo json_encode($results);
+            echo json_encode($cleanedResults);
             break;
 
         case 'save_pointages':
