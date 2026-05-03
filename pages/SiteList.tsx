@@ -211,7 +211,7 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
                   .filter(c => !['transport_local', 'repas', 'hebergement', 'indemnite_deplacement', 'indemnite_repas', 'indemnite_logement', 'transport_commun'].includes(c.type_cout))
                   .reduce((sum, c) => sum + Number(c.montant_reel || 0), 0);
 
-                const pointagesChef = (globalLaborCost || {})[chantier.id_chantier] || 0; // Contient Salaires + Frais pointés
+                const pointagesChef = (globalLaborCost || {})[String(chantier.id_chantier).trim()] || 0; // Contient Salaires + Frais pointés
                 const budgetReelChef = totalFraisReelsHorsIndemnites + pointagesChef;
                 const hasPointage = pointagesChef > 0 || totalFraisReels > 0;
 

@@ -473,12 +473,12 @@ const PointageMensuel = () => {
 
                 <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
                     <select
-                        value={selectedChantier || ''}
-                        onChange={e => setSelectedChantier(e.target.value)}
+                        value={selectedChantier}
+                        onChange={(e) => setSelectedChantier(e.target.value)}
                         className="flex-1 sm:flex-none px-3 md:px-4 py-2 border-2 border-slate-300 rounded-xl font-bold text-sm md:text-base text-slate-800 focus:border-emerald-500 outline-none"
                     >
-                        <option value="">Sélectionner un chantier</option>
-                        {chantiersActifs.map(c => (
+                        <option value="">Choisir un chantier...</option>
+                        {chantiers.map(c => (
                             <option key={c.id_chantier} value={c.id_chantier}>
                                 {c.ref_chantier} - {c.nom_client}
                             </option>
