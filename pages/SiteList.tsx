@@ -309,21 +309,52 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
 
                       <div className="pt-4 border-t border-gray-100 space-y-3">
                         <div className="grid grid-cols-2 gap-3">
-                          <div className="bg-orange-50 rounded-lg p-3 border border-orange-100">
-                            <p className="text-xs text-orange-700 font-medium mb-1">Budget Principal</p>
-                            <p className="text-lg font-bold text-orange-700">{formatCurrency(totalCoutsEngages)}</p>
+                          <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                            <p className="text-[10px] text-gray-400 font-bold mb-1 uppercase">Budget Prévu</p>
+                            <p className="text-lg font-bold text-gray-700">{formatCurrency(chantier.budget_prevu)}</p>
                           </div>
-                          <div className="bg-green-50 rounded-lg p-3 border border-green-100">
-                            <p className="text-xs text-green-700 font-medium mb-1">Avance</p>
-                            <p className="text-lg font-bold text-green-700">{formatCurrency(totalAcomptes)}</p>
+                          <div className={cn(
+                            "rounded-lg p-3 border",
+                            totalCoutsEngages > chantier.budget_prevu ? "bg-red-50 border-red-100" : "bg-blue-50 border-blue-100"
+                          )}>
+                            <p className={cn(
+                              "text-[10px] font-bold mb-1 uppercase",
+                              totalCoutsEngages > chantier.budget_prevu ? "text-red-700" : "text-blue-700"
+                            )}>Coût Réel</p>
+                            <p className={cn(
+                              "text-lg font-bold",
+                              totalCoutsEngages > chantier.budget_prevu ? "text-red-700" : "text-blue-700"
+                            )}>{formatCurrency(totalCoutsEngages)}</p>
                           </div>
                         </div>
 
-                        {/* Reste à verser */}
-                        <div className={`p-2 rounded-lg text-center text-xs font-semibold ${totalCoutsEngages - totalAcomptes > 0
-                          ? 'bg-red-50 text-red-700 border border-red-100'
-                          : 'bg-green-50 text-green-700 border border-green-100'
-                          }`}>
+                        <div className="flex gap-3">
+                          <div className="flex-1 bg-green-50 rounded-lg p-2 border border-green-100 text-center">
+                            <p className="text-[10px] text-green-700 font-bold uppercase">Avance</p>
+                            <p className="text-md font-bold text-green-700">{formatCurrency(totalAcomptes)}</p>
+                          </div>
+                          <div className={cn(
+                            "flex-1 rounded-lg p-2 border text-center",
+                            (chantier.budget_prevu - totalCoutsEngages) >= 0 ? "bg-emerald-50 border-emerald-100" : "bg-red-50 border-red-100"
+                          )}>
+                            <p className={cn(
+                              "text-[10px] font-bold uppercase",
+                              (chantier.budget_prevu - totalCoutsEngages) >= 0 ? "text-emerald-700" : "text-red-700"
+                            )}>Marge</p>
+                            <p className={cn(
+                              "text-md font-bold",
+                              (chantier.budget_prevu - totalCoutsEngages) >= 0 ? "text-emerald-700" : "text-red-700"
+                            )}>{formatCurrency(chantier.budget_prevu - totalCoutsEngages)}</p>
+                          </div>
+                        </div>
+
+
+
+                        {/* Reste à verser (Solde Client) */}
+                        <div className={cn(
+                          "p-2 rounded-lg text-center text-[10px] font-bold border uppercase tracking-wider",
+                          (totalCoutsEngages - totalAcomptes) > 0 ? "bg-amber-50 text-amber-700 border-amber-100" : "bg-emerald-50 text-emerald-700 border-emerald-100"
+                        )}>
                           Reste à verser: {formatCurrency(totalCoutsEngages - totalAcomptes)}
                         </div>
 
