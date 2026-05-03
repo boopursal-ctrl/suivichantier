@@ -189,14 +189,14 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
                   const totalMainOeuvrePermanents = affectationsChantier.reduce((sum, aff) => {
                     const dateDebut = aff.date_entree;
                     const dateFin = aff.date_sortie || new Date().toISOString().split('T')[0];
-                    const joursTravailes = Math.max(0, countDays(dateDebut, dateFin) - aff.jours_arret);
+                    const joursTravailes = Math.max(0, countWorkDays(dateDebut, dateFin) - aff.jours_arret);
                     return sum + (Number(aff.salaire_jour || 0) * joursTravailes);
                   }, 0);
 
                   const totalMainOeuvreLocaux = (chantier.monteurs_locaux || []).reduce((sum, ml) => {
                     const startDate = ml.date_debut || chantier.date_debut || new Date().toISOString().split('T')[0];
                     const endDate = ml.date_fin || chantier.date_fin || new Date().toISOString().split('T')[0];
-                    const days = Math.max(0, countDays(startDate, endDate));
+                    const days = Math.max(0, countWorkDays(startDate, endDate));
                     return sum + (Number(ml.salaire_jour || 0) * days);
                   }, 0);
                   estimatedLabor = totalMainOeuvrePermanents + totalMainOeuvreLocaux;
@@ -414,11 +414,11 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
                        if (realLaborCost === 0) {
                          const affectationsChantier = affectations.filter(a => a.id_chantier === chantier.id_chantier);
                          const totalMainOeuvrePermanents = affectationsChantier.reduce((sum, aff) => {
-                           const jours = Math.max(0, countDays(aff.date_entree, aff.date_sortie || new Date().toISOString().split('T')[0]) - aff.jours_arret);
+                           const jours = Math.max(0, countWorkDays(aff.date_entree, aff.date_sortie || new Date().toISOString().split('T')[0]) - aff.jours_arret);
                            return sum + (Number(aff.salaire_jour || 0) * jours);
                          }, 0);
                          const totalMainOeuvreLocaux = (chantier.monteurs_locaux || []).reduce((sum, ml) => {
-                           const days = Math.max(0, countDays(ml.date_debut || chantier.date_debut || new Date().toISOString().split('T')[0], ml.date_fin || chantier.date_fin || new Date().toISOString().split('T')[0]));
+                           const days = Math.max(0, countWorkDays(ml.date_debut || chantier.date_debut || new Date().toISOString().split('T')[0], ml.date_fin || chantier.date_fin || new Date().toISOString().split('T')[0]));
                            return sum + (Number(ml.salaire_jour || 0) * days);
                          }, 0);
                          estimatedLabor = totalMainOeuvrePermanents + totalMainOeuvreLocaux;

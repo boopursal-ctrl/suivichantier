@@ -63,7 +63,7 @@ const Dashboard: React.FC<DashboardProps> = ({ navigateTo }) => {
   const lowStockItems = articles.filter(a => a.quantite <= a.seuil_alerte);
   const budgetAlerts = chantiers.filter(c => {
     const siteFrais = lignesCouts.filter(l => l.id_chantier === c.id_chantier).reduce((s, l) => s + Number(l.montant_reel || 0), 0);
-    const siteLabor = globalLaborCost[c.id_chantier] || 0;
+    const siteLabor = (globalLaborCost || {})[c.id_chantier] || 0;
     const totalSiteCost = siteFrais + siteLabor;
     return c.budget_prevu > 0 && totalSiteCost > c.budget_prevu * 0.9;
   });

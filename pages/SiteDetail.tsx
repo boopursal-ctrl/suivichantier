@@ -97,7 +97,7 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
     // 1. Permanent Staff (Affectations)
     ...workers.map(w => {
       const end = w.date_sortie || new Date().toISOString().split('T')[0];
-      const days = countDays(w.date_entree, end);
+      const days = countWorkDays(w.date_entree, end);
       const relatedCosts = costs.filter(c => c.related_monteur_id === String(w.matricule)).reduce((s, c) => s + Number(c.montant_reel || 0), 0);
 
       // Find the monteur to get ville_residence
@@ -127,7 +127,7 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
 
       const startDate = ml.date_debut || chantier.date_debut || new Date().toISOString().split('T')[0];
       const endDate = ml.date_fin || chantier.date_fin || new Date().toISOString().split('T')[0];
-      const days = Math.max(0, countDays(startDate, endDate));
+      const days = Math.max(0, countWorkDays(startDate, endDate));
 
       return {
         id: ml.id,
@@ -1271,7 +1271,7 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
                 </div>
                 <div>
                   <p className="text-lg font-bold text-gray-900">{formatDate(chantier.date_debut)} — {formatDate(chantier.date_fin)}</p>
-                  <p className="text-sm font-medium text-gray-500 mt-1">{countDays(chantier.date_debut, chantier.date_fin)} Jours de prestation</p>
+                  <p className="text-sm font-medium text-gray-500 mt-1">{countWorkDays(chantier.date_debut, chantier.date_fin)} Jours de prestation (Hormis Weekend)</p>
                 </div>
               </div>
 
