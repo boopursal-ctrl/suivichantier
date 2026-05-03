@@ -44,7 +44,7 @@ const PERMANENT_MANAGEMENT_MATRICULES = [100, 101, 102, 103, 104, 157];
 
 const PointageMensuel = () => {
 
-    const { chantiers, monteurs, affectations } = useData();
+    const { chantiers, monteurs, affectations, refreshData } = useData();
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedChantier, setSelectedChantier] = useState<string | null>(null);
     const [pointages, setPointages] = useState<PointageData>({});
@@ -404,6 +404,8 @@ const PointageMensuel = () => {
             if (response.status === 'success') {
                 if (!isAutoSave) {
                     toast.success("Pointage enregistré avec succès !");
+                    // Rafraîchir les données globales pour mettre à jour le Budget Réel
+                    if (refreshData) refreshData();
                 }
             } else {
                 throw new Error(response.message || "Erreur MySQL");
