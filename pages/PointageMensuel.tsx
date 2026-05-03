@@ -1132,10 +1132,10 @@ const PointageMensuel = () => {
                                         <div className="w-32 bg-red-200 border-r-2 border-slate-300 flex-shrink-0"></div>
                                         {monteursChantier.map((m: any) => {
                                             const totalCharges =
-                                                (fraisTransport[m.matricule] || 0) +
-                                                (fraisRepas[m.matricule] || 0) +
-                                                (fraisLoyer[m.matricule] || 0) +
-                                                (fraisGasoil[m.matricule] || 0);
+                                                Number(fraisTransport[m.matricule] || 0) +
+                                                Number(fraisRepas[m.matricule] || 0) +
+                                                Number(fraisLoyer[m.matricule] || 0) +
+                                                Number(fraisGasoil[m.matricule] || 0);
                                             return (
                                                 <div key={`charges-${m.matricule}`} className="w-40 bg-red-100 border-r border-red-300 p-2 text-center flex-shrink-0">
                                                     <span className="text-base font-bold text-red-900">{totalCharges.toFixed(2)}</span>
