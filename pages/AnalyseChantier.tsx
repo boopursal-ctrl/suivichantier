@@ -120,46 +120,39 @@ const AnalyseChantierPage: React.FC<AnalyseChantierPageProps> = ({ chantierId, o
         const costs = lignesCouts.filter(c => c.id_chantier === chantierId);
         const workers = affectations.filter(a => a.id_chantier === chantierId);
 
-        // Budget réel = coûts + salaires
-        const totalCouts = costs.reduce((sum, c) => sum + Number(c.montant_reel || 0), 0);
-
-        const PERMANENT_MANAGEMENT_MATRICULES = [100, 101, 102, 103, 104, 157];
-        const totalSalaires = workers.reduce((sum, w) => {
-            if (PERMANENT_MANAGEMENT_MATRICULES.includes(w.matricule)) return sum;
-            
-            // Chercher le pointage réel pour ce monteur
-            const pointagesMonteur = pointagesReels.filter(p => String(p.matricule) === String(w.matricule));
-            if (pointagesMonteur.length > 0) {
-                const totalJoursPointes = pointagesMonteur.reduce((s, p) => s + Number(p.total_jours || 0), 0);
-                return sum + (totalJoursPointes * Number(w.salaire_jour || 0));
-            }
-
-            // Fallback: Estimation planning
-            const end = w.date_sortie || new Date().toISOString().split('T')[0];
+        // 1. Budget Prévu Calculé (Démarrage/Planning)
+        const totalFraisPrevus = costs.reduce((sum, c) => sum + Number(c.montant_prevu || 0), 0);
+        const totalLaborPrevuPermanents = workers.reduce((sum, w) => {
+            const end = w.date_sortie || chantier.date_fin || new Date().toISOString().split('T')[0];
             const days = countWorkDays(w.date_entree, end);
             return sum + (days * Number(w.salaire_jour || 0));
         }, 0);
-
-        // Ajouter les monteurs locaux
-        const localWorkersCost = (chantier.monteurs_locaux || []).reduce((sum, ml) => {
-            // Chercher le pointage réel pour cet intérimaire
-            const matricule = ml.matricule || ml.cin;
-            const pointagesMonteur = pointagesReels.filter(p => String(p.matricule) === String(matricule));
-            
-            if (pointagesMonteur.length > 0) {
-                const totalJoursPointes = pointagesMonteur.reduce((s, p) => s + Number(p.total_jours || 0), 0);
-                return sum + (totalJoursPointes * Number(ml.salaire_jour || 0));
-            }
-
-            // Fallback: Estimation planning
+        const totalLaborPrevuLocaux = (chantier.monteurs_locaux || []).reduce((sum, ml) => {
             const startDate = ml.date_debut || chantier.date_debut || new Date().toISOString().split('T')[0];
             const endDate = ml.date_fin || chantier.date_fin || new Date().toISOString().split('T')[0];
             const days = Math.max(0, countWorkDays(startDate, endDate));
-            return sum + (days * Number(ml.salaire_jour || 0));
+            return sum + (Number(ml.salaire_jour || 0) * days);
+        }, 0);
+        const budget_prevu_interne = totalFraisPrevus + totalLaborPrevuPermanents + totalLaborPrevuLocaux;
+
+        // 2. Budget Réel Calculé (Terrain/Pointages)
+        const totalFraisReels = costs.reduce((sum, c) => sum + Number(c.montant_reel || 0), 0);
+        const PERMANENT_MANAGEMENT_MATRICULES = [100, 101, 102, 103, 104, 157];
+        const totalSalairesReelsPermanents = workers.reduce((sum, w) => {
+            if (PERMANENT_MANAGEMENT_MATRICULES.includes(w.matricule)) return sum;
+            const pointagesMonteur = pointagesReels.filter(p => String(p.matricule) === String(w.matricule));
+            const totalJoursPointes = pointagesMonteur.reduce((s, p) => s + Number(p.total_jours || 0), 0);
+            return sum + (totalJoursPointes * Number(w.salaire_jour || 0));
+        }, 0);
+        const totalSalairesReelsLocaux = (chantier.monteurs_locaux || []).reduce((sum, ml) => {
+            const matricule = ml.matricule || ml.cin;
+            const pointagesMonteur = pointagesReels.filter(p => String(p.matricule) === String(matricule));
+            const totalJoursPointes = pointagesMonteur.reduce((s, p) => s + Number(p.total_jours || 0), 0);
+            return sum + (totalJoursPointes * Number(ml.salaire_jour || 0));
         }, 0);
 
-        const budget_reel = totalCouts + totalSalaires + localWorkersCost;
-        const budget_prevu = chantier.budget_prevu || 0;
+        const budget_reel = totalFraisReels + totalSalairesReelsPermanents + totalSalairesReelsLocaux;
+        const budget_prevu = budget_prevu_interne;
         const ecart_budget = budget_reel - budget_prevu;
         const pourcentage_ecart_budget = budget_prevu > 0 ? (ecart_budget / budget_prevu) * 100 : 0;
 
