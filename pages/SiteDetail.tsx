@@ -525,7 +525,8 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
     date_debut: '',
     date_fin: '',
     responsable_chantier: '',
-    chef_chantier: ''
+    chef_chantier: '',
+    budget_prevu: 0
   });
 
   // Local Worker Form
@@ -790,7 +791,8 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
       date_debut: chantier.date_debut || '',
       date_fin: chantier.date_fin || '',
       responsable_chantier: chantier.responsable_chantier || '',
-      chef_chantier: chantier.chef_chantier || ''
+      chef_chantier: chantier.chef_chantier || '',
+      budget_prevu: chantier.budget_prevu || 0
     });
     setIsEditInfoModalOpen(true);
   };
@@ -1964,6 +1966,18 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
                     />
                   </div>
                 </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Budget Prévu (Contrat)</label>
+                  <div className="relative">
+                    <input type="number" className="w-full border rounded-xl px-4 py-3 pr-12 font-bold text-blue-700"
+                      value={infoFormData.budget_prevu}
+                      onChange={e => setInfoFormData({ ...infoFormData, budget_prevu: Number(e.target.value) })}
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-gray-400">DH</span>
+                  </div>
+                </div>
+
                 <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100">
                   <label className="text-sm font-bold text-gray-700">Documents AT/RC Validés</label>
                   <input type="checkbox" className="w-5 h-5 accent-red-600"
