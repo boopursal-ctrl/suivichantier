@@ -173,17 +173,21 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
           {viewMode === 'grid' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredChantiers.map((chantier) => {
-                // ====================================================
-                // BUDGET PRÉVU = Ce qui était planifié au démarrage
-                // Équipe (salaires théoriques sur la durée du chantier)
-                // ====================================================
-                const costs = lignesCouts.filter(c => c.id_chantier === chantier.id_chantier);
-                const totalFraisPrevus = costs.reduce((sum, c) => sum + Number(c.montant_prevu || 0), 0);
+                // ============================================================
+                // FORMULE IDENTIQUE À SITEDETAIL.TSX (budgetDepense)
+                // ============================================================
 
+                const costs = lignesCouts.filter(c => c.id_chantier === chantier.id_chantier);
                 const affectationsChantier = affectations.filter(a => a.id_chantier === chantier.id_chantier);
                 const MGMT = [100, 101, 102, 103, 104, 157];
 
-                const totalSalairesPrevusPermanents = affectationsChantier
+                // --- FRAIS DIRECTS ---
+                const totalFraisReels   = costs.reduce((sum, c) => sum + Number(c.montant_reel  || 0), 0);
+                const totalFraisPrevus  = costs.reduce((sum, c) => sum + Number(c.montant_prevu || 0), 0);
+
+                // --- SALAIRES (Planifiés sur jours ouvrés, identique à SiteDetail) ---
+                // SiteDetail utilise unifiedWorkers.total_cost - relatedCosts = days × salaire_jour
+                const totalSalairesPlanifiesPermanents = affectationsChantier
                   .filter(a => !MGMT.includes(Number(a.matricule)))
                   .reduce((sum, aff) => {
                     const dateFin = aff.date_sortie || chantier.date_fin || new Date().toISOString().split('T')[0];
@@ -191,32 +195,28 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
                     return sum + (Number(aff.salaire_jour || 0) * jours);
                   }, 0);
 
-                const totalSalairesPrevusLocaux = (chantier.monteurs_locaux || []).reduce((sum, ml) => {
-                  const startDate = ml.date_debut || chantier.date_debut || new Date().toISOString().split('T')[0];
-                  const endDate = ml.date_fin || chantier.date_fin || new Date().toISOString().split('T')[0];
-                  const days = Math.max(0, countWorkDays(startDate, endDate));
-                  return sum + (Number(ml.salaire_jour || 0) * days);
+                const totalSalairesPlanifiesLocaux = (chantier.monteurs_locaux || []).reduce((sum, ml) => {
+                  const s = ml.date_debut || chantier.date_debut || new Date().toISOString().split('T')[0];
+                  const e = ml.date_fin   || chantier.date_fin   || new Date().toISOString().split('T')[0];
+                  return sum + (Number(ml.salaire_jour || 0) * Math.max(0, countWorkDays(s, e)));
                 }, 0);
 
-                // Budget Prévu Final
-                const budgetPrevuCalcule = totalFraisPrevus + totalSalairesPrevusPermanents + totalSalairesPrevusLocaux;
+                const totalSalaires = totalSalairesPlanifiesPermanents + totalSalairesPlanifiesLocaux;
 
-                // ====================================================
-                // COÛT RÉEL = Ce que le chef de chantier a réellement pointé
-                // Pointage Mensuel + Frais réels payés
-                // ====================================================
-                const totalFraisReels = costs.reduce((sum, c) => sum + Number(c.montant_reel || 0), 0);
-                // globalLaborCost vient de get_global_finance_summary → SUM(total_salaire) par chantier
-                const salaireReelPointe = (globalLaborCost || {})[chantier.id_chantier] || 0;
-
-                // Coût Réel Final
-                const coutReelGlobal = totalFraisReels + salaireReelPointe;
+                // ============================================================
+                // BUDGET PRÉVU  = frais prévus  + salaires planning
+                // COÛT RÉEL     = frais réels   + salaires planning (même base)
+                // (identique à budgetDepense de SiteDetail)
+                // ============================================================
+                const budgetPrevuCalcule = totalFraisPrevus + totalSalaires;
+                const coutReelGlobal     = totalFraisReels  + totalSalaires;
 
                 // Avances client
                 const acomptes = versements.filter(v => v.id_chantier === chantier.id_chantier);
                 const totalAcomptes = acomptes.reduce((sum, v) => sum + Number(v.montant || 0), 0);
-                // Indique si le chef a déjà pointé sur ce chantier
-                const hasPointage = salaireReelPointe > 0;
+
+                // Indique si des frais réels ont été saisis (chantier démarré)
+                const hasPointage = totalFraisReels > 0 || totalSalaires > 0;
 
                 return (
                   <div
@@ -443,34 +443,32 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {filteredChantiers.map(chantier => {
-                       // ====================================================
-                       // BUDGET PRÉVU = Planning (Équipe + Frais prévus)
-                       // ====================================================
+                       // Formule identique à SiteDetail
                        const costs = lignesCouts.filter(c => c.id_chantier === chantier.id_chantier);
+                       const totalFraisReels  = costs.reduce((sum, c) => sum + Number(c.montant_reel  || 0), 0);
                        const totalFraisPrevus = costs.reduce((sum, c) => sum + Number(c.montant_prevu || 0), 0);
-                       const totalFraisReels = costs.reduce((sum, c) => sum + Number(c.montant_reel || 0), 0);
 
                        const affectationsChantier = affectations.filter(a => a.id_chantier === chantier.id_chantier);
                        const MGMT_LIST = [100, 101, 102, 103, 104, 157];
-                       const salairesPrevusPermanents = affectationsChantier
+                       const salPermanents = affectationsChantier
                          .filter(a => !MGMT_LIST.includes(Number(a.matricule)))
                          .reduce((sum, aff) => {
                            const dateFin = aff.date_sortie || chantier.date_fin || new Date().toISOString().split('T')[0];
                            const jours = Math.max(0, countWorkDays(aff.date_entree, dateFin) - Number(aff.jours_arret || 0));
                            return sum + (Number(aff.salaire_jour || 0) * jours);
                          }, 0);
-                       const salairesPrevusLocaux = (chantier.monteurs_locaux || []).reduce((sum, ml) => {
-                         const days = Math.max(0, countWorkDays(ml.date_debut || chantier.date_debut || new Date().toISOString().split('T')[0], ml.date_fin || chantier.date_fin || new Date().toISOString().split('T')[0]));
+                       const salLocaux = (chantier.monteurs_locaux || []).reduce((sum, ml) => {
+                         const days = Math.max(0, countWorkDays(
+                           ml.date_debut || chantier.date_debut || new Date().toISOString().split('T')[0],
+                           ml.date_fin   || chantier.date_fin   || new Date().toISOString().split('T')[0]
+                         ));
                          return sum + (Number(ml.salaire_jour || 0) * days);
                        }, 0);
-                       const budgetPrevuCalcule = totalFraisPrevus + salairesPrevusPermanents + salairesPrevusLocaux;
+                       const totalSalaires = salPermanents + salLocaux;
 
-                       // ====================================================
-                       // COÛT RÉEL = Pointages Mensuels + Frais réels
-                       // ====================================================
-                       const salaireReelPointe = (globalLaborCost || {})[chantier.id_chantier] || 0;
-                       const coutReelGlobal = totalFraisReels + salaireReelPointe;
-                       const hasPointageList = salaireReelPointe > 0;
+                       const budgetPrevuCalcule = totalFraisPrevus + totalSalaires;
+                       const coutReelGlobal     = totalFraisReels  + totalSalaires;
+                       const hasPointageList    = totalFraisReels > 0 || totalSalaires > 0;
 
                        return (
                          <tr key={chantier.id_chantier} className="hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0 group">
