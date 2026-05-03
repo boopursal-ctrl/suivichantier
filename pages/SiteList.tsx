@@ -174,20 +174,20 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredChantiers.map((chantier) => {
                 // ============================================================
-                // FORMULE IDENTIQUE À SITEDETAIL.TSX (budgetDepense)
+                // BUDGET PRÉVU = Total Coûts Engagés (identique à SiteDetail)
+                //   frais réels payés + salaires planifiés (jours × taux)
+                // BUDGET RÉEL  = Ce que le Chef a pointé (pointages_mensuels)
                 // ============================================================
 
                 const costs = lignesCouts.filter(c => c.id_chantier === chantier.id_chantier);
                 const affectationsChantier = affectations.filter(a => a.id_chantier === chantier.id_chantier);
                 const MGMT = [100, 101, 102, 103, 104, 157];
 
-                // --- FRAIS DIRECTS ---
-                const totalFraisReels   = costs.reduce((sum, c) => sum + Number(c.montant_reel  || 0), 0);
-                const totalFraisPrevus  = costs.reduce((sum, c) => sum + Number(c.montant_prevu || 0), 0);
+                // Frais réels (lignes_couts)
+                const totalFraisReels = costs.reduce((sum, c) => sum + Number(c.montant_reel || 0), 0);
 
-                // --- SALAIRES (Planifiés sur jours ouvrés, identique à SiteDetail) ---
-                // SiteDetail utilise unifiedWorkers.total_cost - relatedCosts = days × salaire_jour
-                const totalSalairesPlanifiesPermanents = affectationsChantier
+                // Salaires planifiés (jours ouvrés × tarif, identique à SiteDetail)
+                const salPlanifiesPerm = affectationsChantier
                   .filter(a => !MGMT.includes(Number(a.matricule)))
                   .reduce((sum, aff) => {
                     const dateFin = aff.date_sortie || chantier.date_fin || new Date().toISOString().split('T')[0];
@@ -195,28 +195,24 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
                     return sum + (Number(aff.salaire_jour || 0) * jours);
                   }, 0);
 
-                const totalSalairesPlanifiesLocaux = (chantier.monteurs_locaux || []).reduce((sum, ml) => {
+                const salPlanifiesLocaux = (chantier.monteurs_locaux || []).reduce((sum, ml) => {
                   const s = ml.date_debut || chantier.date_debut || new Date().toISOString().split('T')[0];
                   const e = ml.date_fin   || chantier.date_fin   || new Date().toISOString().split('T')[0];
                   return sum + (Number(ml.salaire_jour || 0) * Math.max(0, countWorkDays(s, e)));
                 }, 0);
 
-                const totalSalaires = totalSalairesPlanifiesPermanents + totalSalairesPlanifiesLocaux;
+                const totalSalairesPlanning = salPlanifiesPerm + salPlanifiesLocaux;
 
-                // ============================================================
-                // BUDGET PRÉVU  = frais prévus  + salaires planning
-                // COÛT RÉEL     = frais réels   + salaires planning (même base)
-                // (identique à budgetDepense de SiteDetail)
-                // ============================================================
-                const budgetPrevuCalcule = totalFraisPrevus + totalSalaires;
-                const coutReelGlobal     = totalFraisReels  + totalSalaires;
+                // BUDGET PRÉVU = Total Coûts Engagés (comme SiteDetail)
+                const budgetPrevuCalcule = totalFraisReels + totalSalairesPlanning;
+
+                // BUDGET RÉEL = Pointages Chef (pointages_mensuels)
+                const budgetReelChef = (globalLaborCost || {})[chantier.id_chantier] || 0;
+                const hasPointage = budgetReelChef > 0;
 
                 // Avances client
                 const acomptes = versements.filter(v => v.id_chantier === chantier.id_chantier);
                 const totalAcomptes = acomptes.reduce((sum, v) => sum + Number(v.montant || 0), 0);
-
-                // Indique si des frais réels ont été saisis (chantier démarré)
-                const hasPointage = totalFraisReels > 0 || totalSalaires > 0;
 
                 return (
                   <div
@@ -321,25 +317,25 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
                           <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
                             <p className="text-[10px] text-gray-400 font-bold mb-1 uppercase">Budget Prévu</p>
                             <p className="text-lg font-bold text-gray-700">{formatCurrency(budgetPrevuCalcule)}</p>
-                            <p className="text-[9px] text-gray-400 mt-1">Équipe + Frais planifiés</p>
+                            <p className="text-[9px] text-gray-400 mt-1">Coûts engagés (frais + équipe)</p>
                           </div>
                           <div className={cn(
                             "rounded-lg p-3 border",
                             !hasPointage ? "bg-gray-50 border-gray-100" :
-                            coutReelGlobal > budgetPrevuCalcule ? "bg-red-50 border-red-100" : "bg-blue-50 border-blue-100"
+                            budgetReelChef > budgetPrevuCalcule ? "bg-red-50 border-red-100" : "bg-blue-50 border-blue-100"
                           )}>
                             <p className={cn(
                               "text-[10px] font-bold mb-1 uppercase",
                               !hasPointage ? "text-gray-400" :
-                              coutReelGlobal > budgetPrevuCalcule ? "text-red-700" : "text-blue-700"
-                            )}>Coût Réel</p>
+                              budgetReelChef > budgetPrevuCalcule ? "text-red-700" : "text-blue-700"
+                            )}>Budget Réel</p>
                             <p className={cn(
                               "text-lg font-bold",
                               !hasPointage ? "text-gray-400" :
-                              coutReelGlobal > budgetPrevuCalcule ? "text-red-700" : "text-blue-700"
-                            )}>{hasPointage ? formatCurrency(coutReelGlobal) : '–'}</p>
+                              budgetReelChef > budgetPrevuCalcule ? "text-red-700" : "text-blue-700"
+                            )}>{hasPointage ? formatCurrency(budgetReelChef) : '–'}</p>
                             <p className="text-[9px] mt-1 text-gray-400">
-                              {hasPointage ? 'Pointage Chef + Frais réels' : 'En attente de pointage'}
+                              {hasPointage ? 'Pointage mensuel chef' : 'En attente de pointage'}
                             </p>
                           </div>
                         </div>
@@ -352,16 +348,16 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
                           </div>
                           <div className={cn(
                             "rounded-lg p-2 border text-center",
-                            (coutReelGlobal - totalAcomptes) > 0 ? "bg-amber-50 border-amber-100" : "bg-emerald-50 border-emerald-100"
+                            (budgetPrevuCalcule - totalAcomptes) > 0 ? "bg-amber-50 border-amber-100" : "bg-emerald-50 border-emerald-100"
                           )}>
                             <p className={cn(
                               "text-[10px] font-bold uppercase",
-                              (coutReelGlobal - totalAcomptes) > 0 ? "text-amber-700" : "text-emerald-700"
+                              (budgetPrevuCalcule - totalAcomptes) > 0 ? "text-amber-700" : "text-emerald-700"
                             )}>Reste à verser</p>
                             <p className={cn(
                               "text-md font-bold",
-                              (coutReelGlobal - totalAcomptes) > 0 ? "text-amber-700" : "text-emerald-700"
-                            )}>{formatCurrency(coutReelGlobal - totalAcomptes)}</p>
+                              (budgetPrevuCalcule - totalAcomptes) > 0 ? "text-amber-700" : "text-emerald-700"
+                            )}>{formatCurrency(budgetPrevuCalcule - totalAcomptes)}</p>
                           </div>
                         </div>
 
@@ -466,9 +462,9 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
                        }, 0);
                        const totalSalaires = salPermanents + salLocaux;
 
-                       const budgetPrevuCalcule = totalFraisPrevus + totalSalaires;
-                       const coutReelGlobal     = totalFraisReels  + totalSalaires;
-                       const hasPointageList    = totalFraisReels > 0 || totalSalaires > 0;
+                       const budgetPrevuCalcule = totalFraisReels + totalSalaires;
+                       const budgetReelChef = (globalLaborCost || {})[chantier.id_chantier] || 0;
+                       const hasPointageList = budgetReelChef > 0;
 
                        return (
                          <tr key={chantier.id_chantier} className="hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0 group">
@@ -480,16 +476,16 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
                            </td>
                            <td className="px-6 py-4 font-semibold text-gray-600">{formatCurrency(budgetPrevuCalcule)}</td>
                            <td className="px-6 py-4">
-                             <div className="font-bold text-gray-900">{hasPointageList ? formatCurrency(coutReelGlobal) : '–'}</div>
+                             <div className="font-bold text-gray-900">{hasPointageList ? formatCurrency(budgetReelChef) : '–'}</div>
                              <div className="text-[10px] text-indigo-500 font-bold mt-0.5">{hasPointageList ? 'POINTAGE CHEF' : 'EN ATTENTE'}</div>
                            </td>
                            <td className="px-6 py-4">
                              {hasPointageList ? (
                                <span className={cn(
                                  "px-3 py-1 rounded-full text-xs font-black uppercase",
-                                 (budgetPrevuCalcule - coutReelGlobal) >= 0 ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+                                 (budgetPrevuCalcule - budgetReelChef) >= 0 ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
                                )}>
-                                 {formatCurrency(budgetPrevuCalcule - coutReelGlobal)}
+                                 {formatCurrency(budgetPrevuCalcule - budgetReelChef)}
                                </span>
                              ) : (
                                <span className="px-3 py-1 rounded-full text-xs font-black uppercase bg-gray-100 text-gray-400">–</span>
