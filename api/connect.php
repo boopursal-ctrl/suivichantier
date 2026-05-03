@@ -617,6 +617,11 @@ try {
             break;
 
         case 'save_pointages':
+            // S'assurer que les colonnes existent avant d'insérer
+            try { $conn->exec("ALTER TABLE pointages_mensuels ADD COLUMN frais_transport DECIMAL(15,2) DEFAULT 0"); } catch (Exception $e) {}
+            try { $conn->exec("ALTER TABLE pointages_mensuels ADD COLUMN frais_repas DECIMAL(15,2) DEFAULT 0"); } catch (Exception $e) {}
+            try { $conn->exec("ALTER TABLE pointages_mensuels ADD COLUMN frais_loyer DECIMAL(15,2) DEFAULT 0"); } catch (Exception $e) {}
+            try { $conn->exec("ALTER TABLE pointages_mensuels ADD COLUMN frais_gasoil DECIMAL(15,2) DEFAULT 0"); } catch (Exception $e) {}
 
             $sql = "INSERT INTO pointages_mensuels (id_chantier, matricule, nom_monteur, mois, annee, salaire_journalier, jours_travailles, total_jours, total_salaire, avances, net_a_payer, frais_transport, frais_repas, frais_loyer, frais_gasoil) 
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
