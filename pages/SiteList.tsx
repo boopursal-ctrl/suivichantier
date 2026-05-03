@@ -187,8 +187,13 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
                 const totalFraisReels = costs.reduce((sum, c) => sum + Number(c.montant_reel || 0), 0);
 
                 // Salaires planifiés (jours ouvrés × tarif, identique à SiteDetail)
-                // Les salaires des titulaires CDI ne sont pas comptés dans le budget du chantier
-                const salPlanifiesPerm = 0;
+                const salPlanifiesPerm = affectationsChantier
+                  .filter(a => !MGMT.includes(Number(a.matricule)))
+                  .reduce((sum, aff) => {
+                    const dateFin = aff.date_sortie || chantier.date_fin || new Date().toISOString().split('T')[0];
+                    const jours = Math.max(0, countWorkDays(aff.date_entree, dateFin) - Number(aff.jours_arret || 0));
+                    return sum + (Number(aff.salaire_jour || 0) * jours);
+                  }, 0);
 
                 const salPlanifiesLocaux = (chantier.monteurs_locaux || []).reduce((sum, ml) => {
                   const s = ml.date_debut || chantier.date_debut || new Date().toISOString().split('T')[0];
@@ -442,8 +447,13 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
 
                        const affectationsChantier = affectations.filter(a => a.id_chantier === chantier.id_chantier);
                        const MGMT_LIST = [100, 101, 102, 103, 104, 157];
-                       // Les salaires des CDI ne sont pas comptés
-                       const salPermanents = 0;
+                       const salPermanents = affectationsChantier
+                         .filter(a => !MGMT_LIST.includes(Number(a.matricule)))
+                         .reduce((sum, aff) => {
+                           const dateFin = aff.date_sortie || chantier.date_fin || new Date().toISOString().split('T')[0];
+                           const jours = Math.max(0, countWorkDays(aff.date_entree, dateFin) - Number(aff.jours_arret || 0));
+                           return sum + (Number(aff.salaire_jour || 0) * jours);
+                         }, 0);
                        const salLocaux = (chantier.monteurs_locaux || []).reduce((sum, ml) => {
                          const days = Math.max(0, countWorkDays(
                            ml.date_debut || chantier.date_debut || new Date().toISOString().split('T')[0],
