@@ -379,7 +379,9 @@ const PointageMensuel = () => {
                 const jours_data = pointages[matricule] || {};
                 const total_jours = Number(getMonthTotal(matricule));
                 const salaire_journalier = Number(salaires[matricule] || 120);
-                const total_salaire = (total_jours * salaire_journalier);
+                // Le salaire des permanents (CDI) n'est pas imputé au budget du chantier
+                const isPermanent = m.type !== 'local';
+                const total_salaire = isPermanent ? 0 : (total_jours * salaire_journalier);
                 const montant_avances = Number(avances[matricule] || 0);
                 const net_a_payer = total_salaire - montant_avances;
 
@@ -581,8 +583,8 @@ const PointageMensuel = () => {
                                 <p className="text-xl font-bold text-gray-800">
                                     {monteursChantier.reduce((sum, m) => {
                                         const t = Number(getMonthTotal(m.matricule));
-                                        const isPermanentManagement = PERMANENT_MANAGEMENT_MATRICULES.includes(Number(m.matricule));
-                                        const s = isPermanentManagement ? 0 : Number(salaires[m.matricule] || 120);
+                                        const isPermanent = m.type !== 'local';
+                                        const s = isPermanent ? 0 : Number(salaires[m.matricule] || 120);
                                         return sum + (t * s);
                                     }, 0).toLocaleString()} <span className="text-xs font-normal">DH</span>
                                 </p>

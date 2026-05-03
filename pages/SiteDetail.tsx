@@ -114,7 +114,7 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
         date_fin: w.date_sortie,
         jours_prevus: days,
         jours_pointes: pointagesReels.filter(p => String(p.matricule) === String(w.matricule)).reduce((s, p) => s + Number(p.total_jours || 0), 0),
-        total_cost: (PERMANENT_MANAGEMENT_MATRICULES.includes(Number(w.matricule)) ? 0 : (days * w.salaire_jour)) + relatedCosts,
+        total_cost: relatedCosts, // Les salaires des titulaires CDI ne sont pas comptés, seuls leurs frais le sont
         relatedCosts,
         originalObject: w,
         ville_residence: monteur?.ville_residence
