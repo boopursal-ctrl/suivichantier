@@ -365,11 +365,7 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
                           </div>
                         </div>
 
-                        </div>
-                      </div>
-
                         {/* Avancement */}
-
                         {(() => {
                           const progressTime = (() => {
                             if (!chantier.date_debut || !chantier.date_fin) return 0;
