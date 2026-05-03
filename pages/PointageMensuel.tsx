@@ -373,11 +373,16 @@ const PointageMensuel = () => {
             const mois = currentDate.getMonth() + 1;
             const annee = currentDate.getFullYear();
             const updates = [];
+            
+            // On capture l'état actuel pour éviter les stale closures lors de l'autosave
+            const currentPointages = { ...pointages };
 
             for (const m of monteursChantier) {
                 const matricule = m.matricule;
-                const jours_data = pointages[matricule] || {};
-                const total_jours = Number(getMonthTotal(matricule));
+                const jours_data = currentPointages[matricule] || {};
+                
+                // Recalculer le total jours directement
+                const total_jours = Object.values(jours_data).reduce((sum, val) => sum + Number(val || 0), 0);
                 const salaire_journalier = Number(salaires[matricule] || 120);
                 // Le salaire des chefs / sous-chefs (Management) n'est pas imputé au budget du chantier
                 const isManagement = [100, 101, 102, 103, 104, 157].includes(Number(matricule));
@@ -386,7 +391,7 @@ const PointageMensuel = () => {
                 const net_a_payer = total_salaire - montant_avances;
 
                 updates.push({
-                    id_chantier: selectedChantier,
+                    id_chantier: selectedChantier.trim(),
                     matricule: matricule,
                     nom_monteur: m.nom_monteur,
                     mois: mois,

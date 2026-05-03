@@ -596,13 +596,8 @@ try {
             break;
 
         case 'get_global_finance_summary':
-            // S'assurer que les colonnes existent (compatible avec les anciennes versions MySQL)
-            try { $conn->exec("ALTER TABLE pointages_mensuels ADD COLUMN frais_transport DECIMAL(15,2) DEFAULT 0"); } catch (Exception $e) {}
-            try { $conn->exec("ALTER TABLE pointages_mensuels ADD COLUMN frais_repas DECIMAL(15,2) DEFAULT 0"); } catch (Exception $e) {}
-            try { $conn->exec("ALTER TABLE pointages_mensuels ADD COLUMN frais_loyer DECIMAL(15,2) DEFAULT 0"); } catch (Exception $e) {}
-            try { $conn->exec("ALTER TABLE pointages_mensuels ADD COLUMN frais_gasoil DECIMAL(15,2) DEFAULT 0"); } catch (Exception $e) {}
-
-            // Calcule le total de la main d'œuvre réelle (salaires + frais pointés par le chef) groupé par chantier
+            // Calcule le total de la main d'œuvre réelle groupé par chantier
+            // On utilise COALESCE partout pour éviter qu'un NULL ne transforme tout le calcul en NULL
             $stmt = $conn->prepare("
                 SELECT id_chantier, 
                 SUM(COALESCE(total_salaire, 0)) as total_salaires,
@@ -613,7 +608,14 @@ try {
                 GROUP BY id_chantier
             ");
             $stmt->execute();
-            echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Nettoyage des IDs en sortie pour assurer la correspondance avec le Frontend
+            foreach ($results as &$r) {
+                $r['id_chantier'] = trim($r['id_chantier']);
+            }
+            
+            echo json_encode($results);
             break;
 
         case 'save_pointages':
