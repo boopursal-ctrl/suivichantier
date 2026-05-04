@@ -124,11 +124,11 @@ try {
 
         case 'delete_chantier':
             $id = $_GET['id_chantier'];
-            // Suppression en cascade (si la BD n'a pas ON DELETE CASCADE)
-            $conn->prepare("DELETE FROM affectation_monteur WHERE id_chantier = ?")->execute([$id]);
-            $conn->prepare("DELETE FROM lignes_couts WHERE id_chantier = ?")->execute([$id]);
-            $conn->prepare("DELETE FROM versements WHERE id_chantier = ?")->execute([$id]);
-            $conn->prepare("DELETE FROM pointages_mensuels WHERE id_chantier = ?")->execute([$id]);
+            // Suppression en cascade avec try-catch pour ignorer les tables inexistantes
+            try { $conn->prepare("DELETE FROM affectation_monteur WHERE id_chantier = ?")->execute([$id]); } catch (Exception $e) {}
+            try { $conn->prepare("DELETE FROM lignes_couts WHERE id_chantier = ?")->execute([$id]); } catch (Exception $e) {}
+            try { $conn->prepare("DELETE FROM versements WHERE id_chantier = ?")->execute([$id]); } catch (Exception $e) {}
+            try { $conn->prepare("DELETE FROM pointages_mensuels WHERE id_chantier = ?")->execute([$id]); } catch (Exception $e) {}
 
             $stmt = $conn->prepare("DELETE FROM chantiers WHERE id_chantier = ?");
             $stmt->execute([$id]);
