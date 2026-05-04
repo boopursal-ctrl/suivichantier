@@ -220,46 +220,34 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
   const [isAddingWorker, setIsAddingWorker] = useState(false);
 
   const handleConfirmAddWorker = async () => {
-    if (isAddingWorker) return; // Empêche les clics multiples
-    
-    console.log("Starting handleConfirmAddWorker...");
-    if (!chantier) {
-      console.error("No active chantier");
-      return;
-    }
+    if (isAddingWorker) return;
+    if (!chantier) return;
 
     setIsAddingWorker(true);
+
     try {
-      // A. PERMANENT STUFF
+      // A. CAS PERMANENT
       if (selectedWorkerType === 'PERMANENT' || (searchResult && searchResult.type === 'PERMANENT')) {
         const matricule = searchResult ? searchResult.data.matricule : newWorkerForm.matricule;
-        console.log("Adding Permanent with matricule:", matricule);
-
         const monteur = monteurs.find(m => m.matricule == matricule);
+
         if (!monteur) {
-          alert("❌ Erreur technique : Collaborateur introuvable.");
-          setIsAddingWorker(false);
+          alert("❌ Collaborateur introuvable.");
           return;
         }
 
-      // 1. DUPLICATE CHECK
-      const alreadyHere = unifiedWorkers.find(w => w.type === 'PERMANENT' && w.matricule === monteur.matricule);
-      if (alreadyHere) {
-        alert(`⛔️ ${monteur.nom_monteur} est DÉJÀ présent sur ce chantier.`);
-        return;
-      }
+        const alreadyHere = unifiedWorkers.find(w => w.type === 'PERMANENT' && w.matricule === monteur.matricule);
+        if (alreadyHere) {
+          alert(`⛔️ ${monteur.nom_monteur} est DÉJÀ présent sur ce chantier.`);
+          return;
+        }
 
-      // Check conflict
-      const isBusy = affectations.some(a => a.matricule === monteur.matricule && (!a.date_sortie || a.date_sortie >= (chantier.date_debut || '')));
-      if (isBusy) {
-        if (!confirm(`⚠️ ${monteur.nom_monteur} est déjà affecté ailleurs.\n\nVoulez-vous le réaffecter ici (Double affectation) ?`)) return;
-      }
+        const isBusy = affectations.some(a => a.matricule === monteur.matricule && (!a.date_sortie || a.date_sortie >= (chantier.date_debut || '')));
+        if (isBusy && !confirm(`⚠️ ${monteur.nom_monteur} est déjà affecté ailleurs. Réaffecter ?`)) {
+          return;
+        }
 
-      try {
-        console.log("Calling addAffectation API...");
         const startDate = chantier.date_debut || new Date().toISOString().split('T')[0];
-        const endDate = chantier.date_fin;
-
         await addAffectation({
           id_affectation: `aff-${Date.now()}`,
           id_chantier: chantierId,
@@ -268,86 +256,51 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
           salaire_jour: monteur.salaire_jour,
           zone_travail: chantier.ville_code,
           date_entree: startDate,
-          date_sortie: endDate,
+          date_sortie: chantier.date_fin,
           jours_arret: 0
         });
-        console.log("API Call finished.");
 
-        // --- GESTION AUTOMATIQUE DES CONTRATS ---
+        // Création automatique du contrat (silencieuse)
         try {
-          console.log("📝 Création automatique du contrat...");
-          const contrat = await createContratAutomatique(monteur, chantier, user?.email);
-          if (contrat) {
-            console.log("✅ Contrat créé avec succès");
-          } else {
-            console.warn("⚠️ Contrat non créé (erreur potentielle)");
-          }
-        } catch (contratErr) {
-          console.error("❌ Erreur lors de la création du contrat:", contratErr);
-          // On ne bloque pas l'affectation si le contrat échoue, mais on log l'erreur
+          await createContratAutomatique(monteur, chantier, user?.email);
+        } catch (e) {
+          console.warn("Contrat non créé:", e);
         }
-        // ----------------------------------------
 
         alert(`✅ ${monteur.nom_monteur} ajouté avec succès !`);
         resetUnifiedModal();
-      } catch (err: any) {
-        console.error("Error adding affectation:", err);
-        alert("Erreur lors de l'affectation: " + err.message);
-      } finally {
-        setIsAddingWorker(false);
-      }
-    }
-    // B. INTERIMAIRE / PREVU
-    else {
-      const cin = newWorkerForm.cin?.toUpperCase().trim() || '';
-      const name = newWorkerForm.nom;
 
-      if (!name) {
-        alert("Le nom est obligatoire");
-        setIsAddingWorker(false);
-        return;
-      }
-
-      // DUPLICATE CHECK
-      if (cin) {
-        const already = unifiedWorkers.find(w => w.cin === cin);
-        if (already) { 
-          alert(`⛔️ CIN ${cin} déjà présent.`); 
-          setIsAddingWorker(false);
-          return; 
-        }
+      // B. CAS INTERIMAIRE / PREVU
       } else {
-        const already = unifiedWorkers.find(w => w.nom.toUpperCase() === name.toUpperCase());
-        if (already && !confirm(`⚠️ "${name}" existe déjà. Continuer ?`)) {
-          setIsAddingWorker(false);
-          return;
-        }
-      }
+        const cin = newWorkerForm.cin?.toUpperCase().trim() || '';
+        const name = newWorkerForm.nom;
 
-      // CRITICAL: Check Blacklist only if CIN provided
-      if (cin) {
-        let interimToCheck = searchResult?.type === 'INTERIMAIRE' ? searchResult.data : interimaires.find(i => i.cin.toUpperCase() === cin);
-
-        if (interimToCheck?.is_blacklisted) {
-          alert(`❌ AFFECTATION REFUSÉE\n\n${interimToCheck.nom_complet} est BLACKLISTÉ.\nMotif: ${interimToCheck.blacklist_reason}`);
-          setIsAddingWorker(false);
+        if (!name) {
+          alert("Le nom est obligatoire");
           return;
         }
 
-        // Auto-create global interim profile if new and unknown
-        if (!interimToCheck && selectedWorkerType === 'INTERIMAIRE') {
-          try {
-            await addInterimaire({
-              id: crypto.randomUUID(),
-              cin: cin,
-              nom_complet: name,
-              is_blacklisted: false
-            });
-          } catch (e) { console.warn("Interim creation skipped or failed", e); }
+        if (cin) {
+          const already = unifiedWorkers.find(w => w.cin === cin);
+          if (already) {
+            alert(`⛔️ CIN ${cin} déjà présent.`);
+            return;
+          }
+          const interimToCheck = searchResult?.type === 'INTERIMAIRE' ? searchResult.data : interimaires.find(i => i.cin.toUpperCase() === cin);
+          if (interimToCheck?.is_blacklisted) {
+            alert(`❌ ${interimToCheck.nom_complet} est BLACKLISTÉ.\nMotif: ${interimToCheck.blacklist_reason}`);
+            return;
+          }
+          if (!interimToCheck && selectedWorkerType === 'INTERIMAIRE') {
+            try {
+              await addInterimaire({ id: crypto.randomUUID(), cin, nom_complet: name, is_blacklisted: false });
+            } catch (e) { console.warn("Création interim échouée", e); }
+          }
+        } else {
+          const already = unifiedWorkers.find(w => w.nom.toUpperCase() === name.toUpperCase());
+          if (already && !confirm(`⚠️ "${name}" existe déjà. Continuer ?`)) return;
         }
-      }
 
-      try {
         const startDate = chantier.date_debut || new Date().toISOString().split('T')[0];
         const endDate = chantier.date_fin;
         const initialDays = countWorkDays(startDate, endDate || new Date().toISOString().split('T')[0]);
@@ -364,18 +317,18 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
           type: selectedWorkerType === 'PREVU' ? 'PREVU' : 'INTERIMAIRE'
         };
 
-        const updated = [...(chantier.monteurs_locaux || []), newLocal];
-        await updateChantier({ ...chantier, monteurs_locaux: updated });
+        await updateChantier({ ...chantier, monteurs_locaux: [...(chantier.monteurs_locaux || []), newLocal] });
         alert(`✅ ${name} ajouté avec succès !`);
         resetUnifiedModal();
-      } catch (err: any) {
-        console.error("Error adding local worker:", err);
-        alert("Erreur lors de l'ajout: " + err.message);
-      } finally {
-        setIsAddingWorker(false);
       }
+    } catch (err: any) {
+      console.error("Erreur handleConfirmAddWorker:", err);
+      alert("Erreur: " + err.message);
+    } finally {
+      setIsAddingWorker(false);
     }
   };
+
 
   // ACTIONS
   // ACTIONS

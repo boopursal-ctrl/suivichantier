@@ -123,7 +123,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         mysqlService.query('get_mouvements').then(data => ({ data, error: null })).catch(() => ({ data: [], error: null })),
         mysqlService.query('get_users').then(data => ({ data, error: null })).catch(() => ({ data: [], error: null })),
         mysqlService.query('get_interimaires').then(data => ({ data, error: null })).catch(() => ({ data: [], error: null })),
-        mysqlService.query('get_global_finance_summary').then(data => ({ data, error: null })).catch(() => ({ data: [], error: null }))
+        mysqlService.query('get_global_finance_summary').then(res => {
+          // L'API retourne { status: "success", data: [...] } — on extrait le tableau .data
+          const arr = (res && Array.isArray(res.data)) ? res.data : (Array.isArray(res) ? res : []);
+          return { data: arr, error: null };
+        }).catch(() => ({ data: [], error: null }))
       ]);
 
       debug('📊 Data results received, processing...');
@@ -156,7 +160,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setMouvements(Array.isArray(mouvementsResult.data) ? mouvementsResult.data : []);
 
       // Traitement du résumé financier
-      if (Array.isArray(financeSummaryResult.data)) {
+      // financeSummaryResult.data est déjà un tableau propre grâce à l'extraction .data ci-dessus
+      if (Array.isArray(financeSummaryResult.data) && financeSummaryResult.data.length > 0) {
         const laborMap: { [key: string]: number } = {};
         financeSummaryResult.data.forEach((item: any) => {
           const rawId = item.id_chantier || item.ID_CHANTIER || '';
@@ -165,7 +170,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             laborMap[id] = Number(item.total_main_doeuvre_reelle || 0);
           }
         });
+        debug('✅ GlobalLaborCost chargé:', laborMap);
         setGlobalLaborCost(laborMap);
+      } else {
+        debug('⚠️ Aucun pointage trouvé dans get_global_finance_summary');
       }
 
       // Transformer les profiles en users avec vérification
@@ -305,6 +313,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     loadingData,
     refreshData,
     logAction,
+    globalLaborCost,
     chantiers, addChantier, updateChantier, deleteChantier,
     monteurs, addMonteur, updateMonteur, deleteMonteur,
     affectations,

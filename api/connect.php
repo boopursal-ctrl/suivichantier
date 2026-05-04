@@ -123,8 +123,15 @@ try {
             break;
 
         case 'delete_chantier':
+            $id = $_GET['id_chantier'];
+            // Suppression en cascade (si la BD n'a pas ON DELETE CASCADE)
+            $conn->prepare("DELETE FROM affectation_monteur WHERE id_chantier = ?")->execute([$id]);
+            $conn->prepare("DELETE FROM lignes_couts WHERE id_chantier = ?")->execute([$id]);
+            $conn->prepare("DELETE FROM versements WHERE id_chantier = ?")->execute([$id]);
+            $conn->prepare("DELETE FROM pointages_mensuels WHERE id_chantier = ?")->execute([$id]);
+
             $stmt = $conn->prepare("DELETE FROM chantiers WHERE id_chantier = ?");
-            $stmt->execute([$_GET['id_chantier']]);
+            $stmt->execute([$id]);
             echo json_encode(["status" => "success"]);
             break;
 

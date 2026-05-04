@@ -216,7 +216,8 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
                 const pointagesChef = globalLaborCost ? (globalLaborCost[techId] || 0) : 0;
                 
                 const budgetReelChef = totalFraisReelsHorsIndemnites + pointagesChef;
-                const hasPointage = pointagesChef > 0 || totalFraisReels > 0;
+                // N'afficher le Budget Réel que si des pointages mensuels existent réellement
+                const hasPointage = pointagesChef > 0 || totalFraisReelsHorsIndemnites > 0;
 
                 // Avances client
                 const acomptes = versements.filter(v => v.id_chantier === chantier.id_chantier);
@@ -478,7 +479,8 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
 
                        const pointagesChef = (globalLaborCost || {})[chantier.id_chantier] || 0;
                        const budgetReelChef = totalFraisReelsHorsIndemnites + pointagesChef;
-                       const hasPointageList = pointagesChef > 0 || totalFraisReels > 0;
+                       // N'afficher le Budget Réel que si des pointages mensuels existent réellement
+                       const hasPointageList = pointagesChef > 0 || totalFraisReelsHorsIndemnites > 0;
 
                        return (
                          <tr key={chantier.id_chantier} className="hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0 group">
