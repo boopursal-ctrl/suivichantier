@@ -3003,9 +3003,14 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
                     </div>
 
                     <div className="pt-4 flex gap-3">
-                      <button onClick={() => setAddStep(1)} className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg font-bold">Retour</button>
-                      <button onClick={handleConfirmAddWorker} className="flex-1 bg-red-700 text-white py-2 rounded-lg font-bold hover:bg-red-800">
-                        Valider
+                      <button type="button" onClick={() => setAddStep(1)} className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg font-bold">Retour</button>
+                      <button
+                        type="button"
+                        onClick={handleConfirmAddWorker}
+                        disabled={isAddingWorker}
+                        className={`flex-1 py-2 rounded-lg font-bold text-white transition-colors ${isAddingWorker ? 'bg-gray-400 cursor-not-allowed' : 'bg-red-700 hover:bg-red-800'}`}
+                      >
+                        {isAddingWorker ? 'En cours...' : 'Valider'}
                       </button>
                     </div>
                   </div>
