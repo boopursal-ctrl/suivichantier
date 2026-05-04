@@ -132,7 +132,8 @@ try {
 
             $stmt = $conn->prepare("DELETE FROM chantiers WHERE id_chantier = ?");
             $stmt->execute([$id]);
-            echo json_encode(["status" => "success"]);
+            $deletedRows = $stmt->rowCount();
+            echo json_encode(["status" => "success", "id_received" => $id, "rows_deleted" => $deletedRows]);
             break;
 
         // --- MONTEURS ---
