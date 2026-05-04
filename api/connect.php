@@ -47,6 +47,28 @@ try {
             }
             break;
 
+        // --- AUDIT LOG ---
+        case 'save_audit_log':
+            $conn->exec("CREATE TABLE IF NOT EXISTS audit_logs (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                action VARCHAR(50),
+                entity_type VARCHAR(50),
+                entity_id VARCHAR(50),
+                details TEXT,
+                respo_user_id VARCHAR(50),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )");
+            $stmt = $conn->prepare("INSERT INTO audit_logs (action, entity_type, entity_id, details, respo_user_id) VALUES (?, ?, ?, ?, ?)");
+            $stmt->execute([
+                $data['action'] ?? '',
+                $data['entity_type'] ?? '',
+                $data['entity_id'] ?? '',
+                $data['details'] ?? '',
+                $data['respo_user_id'] ?? ''
+            ]);
+            echo json_encode(["status" => "success"]);
+            break;
+
         // --- CHANTIERS ---
         case 'get_chantiers':
             $stmt = $conn->prepare("SELECT * FROM chantiers ORDER BY created_at DESC");

@@ -413,9 +413,8 @@ const SiteList: React.FC<SiteListProps> = ({ onSelectSite }) => {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (confirm(`Voulez-vous vraiment supprimer le chantier "${chantier.ref_chantier}" ?\nCette action est irréversible et sera enregistrée.`)) {
-                                deleteChantier(chantier.id_chantier);
-                              }
+                              console.log("Delete clicked for", chantier.ref_chantier);
+                              deleteChantier(chantier.id_chantier);
                             }}
                             className="p-2 text-gray-300 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                             title="Supprimer ce chantier"
