@@ -217,23 +217,30 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
     setSearchResult(null);
   };
 
+  const [isAddingWorker, setIsAddingWorker] = useState(false);
+
   const handleConfirmAddWorker = async () => {
+    if (isAddingWorker) return; // Empêche les clics multiples
+    
     console.log("Starting handleConfirmAddWorker...");
     if (!chantier) {
       console.error("No active chantier");
       return;
     }
 
-    // A. PERMANENT STUFF
-    if (selectedWorkerType === 'PERMANENT' || (searchResult && searchResult.type === 'PERMANENT')) {
-      const matricule = searchResult ? searchResult.data.matricule : newWorkerForm.matricule;
-      console.log("Adding Permanent with matricule:", matricule);
+    setIsAddingWorker(true);
+    try {
+      // A. PERMANENT STUFF
+      if (selectedWorkerType === 'PERMANENT' || (searchResult && searchResult.type === 'PERMANENT')) {
+        const matricule = searchResult ? searchResult.data.matricule : newWorkerForm.matricule;
+        console.log("Adding Permanent with matricule:", matricule);
 
-      const monteur = monteurs.find(m => m.matricule == matricule);
-      if (!monteur) {
-        alert("❌ Erreur technique : Collaborateur introuvable.");
-        return;
-      }
+        const monteur = monteurs.find(m => m.matricule == matricule);
+        if (!monteur) {
+          alert("❌ Erreur technique : Collaborateur introuvable.");
+          setIsAddingWorker(false);
+          return;
+        }
 
       // 1. DUPLICATE CHECK
       const alreadyHere = unifiedWorkers.find(w => w.type === 'PERMANENT' && w.matricule === monteur.matricule);
@@ -282,10 +289,12 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
         // ----------------------------------------
 
         alert(`✅ ${monteur.nom_monteur} ajouté avec succès !`);
+        resetUnifiedModal();
       } catch (err: any) {
         console.error("Error adding affectation:", err);
         alert("Erreur lors de l'affectation: " + err.message);
-        return;
+      } finally {
+        setIsAddingWorker(false);
       }
     }
     // B. INTERIMAIRE / PREVU
@@ -295,16 +304,24 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
 
       if (!name) {
         alert("Le nom est obligatoire");
+        setIsAddingWorker(false);
         return;
       }
 
       // DUPLICATE CHECK
       if (cin) {
         const already = unifiedWorkers.find(w => w.cin === cin);
-        if (already) { alert(`⛔️ CIN ${cin} déjà présent.`); return; }
+        if (already) { 
+          alert(`⛔️ CIN ${cin} déjà présent.`); 
+          setIsAddingWorker(false);
+          return; 
+        }
       } else {
         const already = unifiedWorkers.find(w => w.nom.toUpperCase() === name.toUpperCase());
-        if (already && !confirm(`⚠️ "${name}" existe déjà. Continuer ?`)) return;
+        if (already && !confirm(`⚠️ "${name}" existe déjà. Continuer ?`)) {
+          setIsAddingWorker(false);
+          return;
+        }
       }
 
       // CRITICAL: Check Blacklist only if CIN provided
@@ -313,6 +330,7 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
 
         if (interimToCheck?.is_blacklisted) {
           alert(`❌ AFFECTATION REFUSÉE\n\n${interimToCheck.nom_complet} est BLACKLISTÉ.\nMotif: ${interimToCheck.blacklist_reason}`);
+          setIsAddingWorker(false);
           return;
         }
 
@@ -329,37 +347,34 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
         }
       }
 
-      const startDate = chantier.date_debut || new Date().toISOString().split('T')[0];
-      const endDate = chantier.date_fin;
-      const initialDays = countWorkDays(startDate, endDate || new Date().toISOString().split('T')[0]);
-
-      // Add to Local List (Chantier specific)
-      const newLocal: MonteurLocal = {
-        id: `ml-${Date.now()}`,
-        nom_complet: name,
-        cin: cin,
-        salaire_jour: Number(newWorkerForm.salaire) || 0,
-        jours_travailles: initialDays,
-        date_debut: startDate,
-        date_fin: endDate,
-        ville_residence: newWorkerForm.ville || '',
-        type: selectedWorkerType === 'PREVU' ? 'PREVU' : 'INTERIMAIRE'
-      };
-
-      const existingLocals = chantier.monteurs_locaux || [];
-      const updated = [...existingLocals, newLocal];
-
       try {
+        const startDate = chantier.date_debut || new Date().toISOString().split('T')[0];
+        const endDate = chantier.date_fin;
+        const initialDays = countWorkDays(startDate, endDate || new Date().toISOString().split('T')[0]);
+
+        const newLocal: MonteurLocal = {
+          id: `ml-${Date.now()}`,
+          nom_complet: name,
+          cin: cin,
+          salaire_jour: Number(newWorkerForm.salaire) || 120,
+          jours_travailles: initialDays,
+          date_debut: startDate,
+          date_fin: endDate,
+          ville_residence: newWorkerForm.ville || '',
+          type: selectedWorkerType === 'PREVU' ? 'PREVU' : 'INTERIMAIRE'
+        };
+
+        const updated = [...(chantier.monteurs_locaux || []), newLocal];
         await updateChantier({ ...chantier, monteurs_locaux: updated });
         alert(`✅ ${name} ajouté avec succès !`);
+        resetUnifiedModal();
       } catch (err: any) {
-        console.error("Error updating chantier locals:", err);
-        alert("Erreur lors de l'ajout local:" + err.message);
-        return;
+        console.error("Error adding local worker:", err);
+        alert("Erreur lors de l'ajout: " + err.message);
+      } finally {
+        setIsAddingWorker(false);
       }
     }
-
-    resetUnifiedModal();
   };
 
   // ACTIONS
