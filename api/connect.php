@@ -599,7 +599,7 @@ try {
             // Calcule le total de la main d'œuvre réelle groupé par chantier
             // On utilise COALESCE partout pour éviter qu'un NULL ne transforme tout le calcul en NULL
             $stmt = $conn->prepare("
-                SELECT id_chantier, 
+                SELECT id_chantier as id_chantier, 
                 SUM(COALESCE(total_salaire, 0)) as total_salaires,
                 SUM(COALESCE(frais_transport, 0) + COALESCE(frais_repas, 0) + COALESCE(frais_loyer, 0) + COALESCE(frais_gasoil, 0)) as total_frais_pointes,
                 SUM(COALESCE(total_salaire, 0) + COALESCE(frais_transport, 0) + COALESCE(frais_repas, 0) + COALESCE(frais_loyer, 0) + COALESCE(frais_gasoil, 0)) as total_main_doeuvre_reelle,
@@ -610,11 +610,13 @@ try {
             $stmt->execute();
             $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
-            // Nettoyage et sécurisation des IDs
+            // Nettoyage et sécurisation des IDs (compatible Maj/Min)
             $cleanedResults = [];
             foreach ($results as $r) {
-                if (isset($r['id_chantier'])) {
-                    $id = trim((string)$r['id_chantier']);
+                // On cherche l'ID peu importe la casse
+                $idValue = $r['id_chantier'] ?? $r['ID_CHANTIER'] ?? null;
+                if ($idValue !== null) {
+                    $id = trim((string)$idValue);
                     $r['id_chantier'] = $id;
                     $cleanedResults[] = $r;
                 }
