@@ -8,6 +8,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
     exit;
 }
 
+// Sécurité : empêche les erreurs PHP de polluer le JSON
+error_reporting(0);
+ini_set('display_errors', 0);
+
 $db_host = 'localhost';
 $db_name = 'boopugbb_suivi';
 $db_user = 'boopugbb_suivi';
@@ -626,6 +630,20 @@ try {
                 "status" => "success",
                 "data" => $cleanedResults
             ]);
+            break;
+
+        case 'delete_chantier':
+            $id = $_GET['id_chantier'] ?? '';
+            if (!$id) {
+                echo json_encode(["status" => "error", "message" => "ID manquant"]);
+                exit;
+            }
+            // Supprimer le chantier
+            $stmt = $conn->prepare("DELETE FROM chantiers WHERE id_chantier = ?");
+            $stmt->execute([$id]);
+            // Optionnel : supprimer aussi les pointages et les coûts associés ?
+            // Pour l'instant on garde les données par sécurité.
+            echo json_encode(["status" => "success"]);
             break;
 
         case 'save_pointages':
