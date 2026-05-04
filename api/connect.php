@@ -622,7 +622,10 @@ try {
                 }
             }
             
-            echo json_encode($cleanedResults);
+            echo json_encode([
+                "status" => "success",
+                "data" => $cleanedResults
+            ]);
             break;
 
         case 'save_pointages':
