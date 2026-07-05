@@ -7,7 +7,7 @@ import React, { useState } from 'react';
 import { useData } from '../contexts/DataContext';
 import { LigneCout, AffectationMonteur, Versement, TypeCout, Chantier, MonteurLocal, StadeAvancement } from '../types';
 import { formatCurrency, formatDate, countDays, countWorkDays, cn, getCityName } from '../utils';
-import { ArrowLeft, Box, Truck, Plus, Trash2, Edit2, Wallet, Users, Banknote, Calendar, MapPin, CheckCircle2, AlertTriangle, X, FileText, Car, HardHat, Save, MessageSquare, Minus, Search, UserPlus, ArrowRight, Utensils, Home, TrendingUp, BarChart3 } from 'lucide-react';
+import { ArrowLeft, Box, Truck, Plus, Trash2, Edit2, Wallet, Users, Banknote, Calendar, MapPin, CheckCircle2, AlertTriangle, X, FileText, Car, HardHat, Save, MessageSquare, Minus, Search, UserPlus, ArrowRight, Utensils, Home, TrendingUp, BarChart3, ShieldAlert } from 'lucide-react';
 import { createContratAutomatique } from '../services/contratService';
 import { useAuth } from '../contexts/AuthContext';
 import AnalyseChantierPage from './AnalyseChantier';
@@ -96,7 +96,7 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
   const unifiedWorkers: UnifiedWorker[] = chantier ? [
     // 1. Permanent Staff (Affectations)
     ...workers.map(w => {
-      const end = w.date_sortie || new Date().toISOString().split('T')[0];
+      const end = w.date_sortie || chantier.date_fin || new Date().toISOString().split('T')[0];
       const days = countWorkDays(w.date_entree, end);
       const relatedCosts = costs.filter(c => c.related_monteur_id === String(w.matricule)).reduce((s, c) => s + Number(c.montant_reel || 0), 0);
 
@@ -1156,29 +1156,59 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
           </div>
 
           {/* 4. Hébergement */}
-          <div className="p-3 bg-purple-50/50 rounded-xl border border-purple-100">
+          <div className="p-3 bg-indigo-50/50 rounded-xl border border-indigo-100">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[10px] text-purple-800 uppercase font-black">Hébergement</p>
-              <Home size={14} className="text-purple-400" />
+              <p className="text-[10px] text-indigo-800 uppercase font-black">Hébergement</p>
+              <Home size={14} className="text-indigo-400" />
             </div>
             <p className="text-base font-bold text-slate-800">{formatCurrency(totalHebergement)}</p>
-            <p className="text-[9px] text-purple-600/70 mt-0.5">Loyers, Hôtels</p>
+            <p className="text-[9px] text-indigo-600/70 mt-0.5">Loyers, Hôtels</p>
           </div>
 
-          {/* 5. Total Acompte (Encaissé) */}
-          <div className="p-3 bg-green-50/50 rounded-xl border border-green-100 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-8 h-8 bg-green-200/50 rounded-bl-full -mr-4 -mt-4"></div>
-            <div className="flex items-center justify-between mb-2 relative z-10">
-              <p className="text-[10px] text-green-800 uppercase font-black">TOTAL ACOMPTE</p>
-              <Banknote size={14} className="text-green-500" />
+          {/* 5. ACOMPTE & ARGENT DEHORS (NOUVEAU) */}
+          <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100 relative overflow-hidden">
+             <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] text-emerald-800 uppercase font-black">Total Acompte</p>
+              <Banknote size={14} className="text-emerald-400" />
             </div>
-            <p className="text-base font-bold text-slate-800 relative z-10">{formatCurrency(totalVersements)}</p>
-            <div className="w-full bg-green-200/50 h-1 rounded-full mt-2 overflow-hidden">
-              <div className="bg-green-500 h-full" style={{ width: `${Math.min((totalVersements / (budgetDepense || 1)) * 100, 100)}%` }}></div>
+            <p className="text-base font-bold text-emerald-900">{formatCurrency(totalVersements)}</p>
+            <div className="mt-2 pt-2 border-t border-emerald-100">
+              <p className="text-[9px] text-emerald-600 uppercase font-black">
+                {(totalVersements - totalDepensesDirectes) >= 0 ? 'Argent "Dehors"' : 'Solde Négatif (À rembourser)'}
+              </p>
+              <p className={cn("text-sm font-black", (totalVersements - totalDepensesDirectes) >= 0 ? "text-emerald-700" : "text-red-600")}>
+                {formatCurrency(totalVersements - totalDepensesDirectes)}
+              </p>
             </div>
           </div>
-
         </div>
+
+        {/* RISK ANALYSIS SECTION */}
+        {(() => {
+          if (!chantier.budget_prevu || chantier.budget_prevu <= 0) return null;
+
+          const budgetConsommationPercent = (budgetDepense / chantier.budget_prevu) * 100;
+          const physicalProgress = chantier.taux_avancement || 0;
+          const riskFactor = budgetConsommationPercent - physicalProgress;
+          
+          if (riskFactor > 10) {
+            return (
+              <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-2xl flex items-center gap-4 animate-pulse">
+                <div className="bg-red-500 text-white p-2 rounded-xl">
+                  <ShieldAlert size={24} />
+                </div>
+                <div>
+                  <p className="text-red-800 font-bold text-sm uppercase">Alerte Risque Critique</p>
+                  <p className="text-red-600 text-xs font-medium">
+                    La consommation budgétaire ({budgetConsommationPercent.toFixed(0)}%) dépasse largement l'avancement physique ({physicalProgress}%). 
+                    Écart de risque : <span className="font-black">+{riskFactor.toFixed(1)}%</span>
+                  </p>
+                </div>
+              </div>
+            );
+          }
+          return null;
+        })()}
 
         {/* Autres Frais (s'il y en a) */}
         {totalAutresFrais > 0 && (
@@ -1647,11 +1677,26 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
         {/* --- TAB PAIEMENTS (DYNAMIC) --- */}
         {activeTab === 'paiements' && (
           <div className="max-w-2xl mx-auto">
-            <div className="text-center mb-8 bg-green-50 p-6 rounded-2xl border border-green-100">
-              <p className="text-green-800 font-medium">Total Acomptes</p>
-              <p className="text-4xl font-bold text-green-600">{formatCurrency(totalVersements)}</p>
-              <div className="w-full bg-green-200 h-2 rounded-full mt-3">
-                <div className="bg-green-500 h-2 rounded-full" style={{ width: `${Math.min((totalVersements / chantier.budget_prevu) * 100, 100)}% ` }}></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+              <div className="text-center bg-green-50 p-6 rounded-2xl border border-green-100">
+                <p className="text-green-800 font-medium text-sm">Total Acomptes donnés</p>
+                <p className="text-3xl font-bold text-green-600">{formatCurrency(totalVersements)}</p>
+                <div className="w-full bg-green-200 h-2 rounded-full mt-3">
+                  <div className="bg-green-500 h-2 rounded-full" style={{ width: `${Math.min((totalVersements / (chantier.budget_prevu || 1)) * 100, 100)}%` }}></div>
+                </div>
+              </div>
+
+              <div className={cn(
+                "text-center p-6 rounded-2xl border",
+                (totalVersements - totalDepensesDirectes) > (chantier.budget_prevu * 0.5) ? "bg-red-50 border-red-100" : "bg-blue-50 border-blue-100"
+              )}>
+                <p className={cn("font-medium text-sm", (totalVersements - totalDepensesDirectes) > (chantier.budget_prevu * 0.5) ? "text-red-800" : "text-blue-800")}>
+                  Argent "Dehors" (Solde Chef)
+                </p>
+                <p className={cn("text-3xl font-bold", (totalVersements - totalDepensesDirectes) > (chantier.budget_prevu * 0.5) ? "text-red-600" : "text-blue-600")}>
+                  {formatCurrency(totalVersements - totalDepensesDirectes)}
+                </p>
+                <p className="text-[10px] text-gray-400 mt-2 uppercase font-bold">Total Avances - Dépenses Justifiées</p>
               </div>
             </div>
 

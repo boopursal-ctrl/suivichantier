@@ -25,7 +25,8 @@ import {
   Search,
   MoreHorizontal,
   ChevronRight,
-  Zap
+  Zap,
+  Banknote
 } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -37,7 +38,7 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ navigateTo }) => {
-  const { chantiers, monteurs, lignesCouts, articles, mouvements, globalLaborCost } = useData();
+  const { chantiers, monteurs, lignesCouts, articles, mouvements, globalLaborCost, versements } = useData();
   const { user } = useAuth();
   const [timeRange, setTimeRange] = useState('Mensuel');
   const [isMounted, setIsMounted] = React.useState(false);
@@ -58,6 +59,33 @@ const Dashboard: React.FC<DashboardProps> = ({ navigateTo }) => {
   const totalDepenses = totalFraisDirects + totalMainDoeuvreReelle;
   const margeGlobale = totalBudgetPrevu - totalDepenses;
   const financePercent = totalBudgetPrevu > 0 ? (totalDepenses / totalBudgetPrevu) * 100 : 0;
+
+  // --- SANTÉ FINANCIÈRE & ANALYSE DU RISQUE ---
+  const moneyOutByChef = useMemo(() => {
+    // Calcul de l'argent "dehors" : Total Versements - Total Dépenses (hors main d'oeuvre car payée par siège souvent)
+    // Mais ici on va simplifier : Argent donné au chef - Dépenses justifiées
+    return activeChantiers.reduce((acc, c) => {
+      const siteVersements = versements.filter(v => v.id_chantier === c.id_chantier).reduce((s, v) => s + Number(v.montant || 0), 0);
+      const siteFraisDirects = lignesCouts.filter(l => l.id_chantier === c.id_chantier).reduce((s, l) => s + Number(l.montant_reel || 0), 0);
+      const diff = siteVersements - siteFraisDirects;
+      return acc + (diff > 0 ? diff : 0);
+    }, 0);
+  }, [activeChantiers, versements, lignesCouts]);
+
+  const chantiersARisque = useMemo(() => {
+    return activeChantiers.map(c => {
+      const siteFrais = lignesCouts.filter(l => l.id_chantier === c.id_chantier).reduce((s, l) => s + Number(l.montant_reel || 0), 0);
+      const siteLabor = (globalLaborCost || {})[c.id_chantier] || 0;
+      const totalSiteCost = siteFrais + siteLabor;
+      
+      const budgetConsommationPercent = c.budget_prevu > 0 ? (totalSiteCost / c.budget_prevu) * 100 : 0;
+      const physicalProgress = c.taux_avancement || 0;
+      const risk = budgetConsommationPercent - physicalProgress;
+      
+      return { ...c, budgetConsommationPercent, risk, totalSiteCost };
+    }).filter(c => c.budget_prevu > 0 && c.risk > 10) // Alerte si budget défini ET l'écart est > 10%
+      .sort((a, b) => b.risk - a.risk);
+  }, [activeChantiers, lignesCouts, globalLaborCost]);
 
   // Alerts
   const lowStockItems = articles.filter(a => a.quantite <= a.seuil_alerte);
@@ -263,6 +291,67 @@ const Dashboard: React.FC<DashboardProps> = ({ navigateTo }) => {
             </div>
           </div>
 
+        </div>
+
+        {/* 2.5 SECTION SANTÉ FINANCIÈRE - NOUVEAU */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Carte L'argent Dehors */}
+          <div className="bg-white rounded-3xl p-8 border-l-8 border-indigo-600 shadow-xl shadow-gray-100 flex items-center justify-between">
+            <div>
+              <p className="text-gray-400 font-bold uppercase text-xs tracking-widest mb-1">Argent "Dehors" (En caisse chez les chefs)</p>
+              <h3 className="text-4xl font-black text-gray-900">{formatCurrency(moneyOutByChef)}</h3>
+              <p className="text-gray-500 text-sm mt-2 font-medium">Total des avances non encore justifiées par des factures.</p>
+            </div>
+            <div className="bg-indigo-50 p-6 rounded-2xl text-indigo-600">
+              <Banknote size={40} />
+            </div>
+          </div>
+
+          {/* Carte Analyse du Risque */}
+          <div className="bg-white rounded-3xl p-8 border-l-8 border-red-500 shadow-xl shadow-gray-100">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <p className="text-gray-400 font-bold uppercase text-xs tracking-widest mb-1">Analyse du Risque Budgétaire</p>
+                <h3 className="text-2xl font-black text-gray-900">
+                  {chantiersARisque.length > 0 ? `${chantiersARisque.length} Chantiers Critiques` : "Aucun Risque Majeur"}
+                </h3>
+              </div>
+              <div className={cn(
+                "p-4 rounded-2xl",
+                chantiersARisque.length > 0 ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-600"
+              )}>
+                <ShieldAlert size={32} />
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {chantiersARisque.slice(0, 2).map(c => (
+                <div key={c.id_chantier} className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="font-bold text-gray-800 text-sm truncate max-w-[200px]">{c.ref_chantier} - {c.nom_client}</span>
+                    <span className="text-red-600 font-black text-xs px-2 py-1 bg-red-100 rounded-md">Risque: +{c.risk.toFixed(1)}%</span>
+                  </div>
+                  <div className="flex items-center gap-4 text-xs font-medium">
+                    <div className="flex-1 space-y-1">
+                      <div className="flex justify-between text-[10px] text-gray-400 uppercase">
+                        <span>Conso. Budget ({c.budgetConsommationPercent.toFixed(0)}%)</span>
+                        <span>Avancement Physique ({c.taux_avancement}%)</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-gray-200 rounded-full flex overflow-hidden">
+                        <div className="bg-red-500 h-full" style={{ width: `${c.budgetConsommationPercent}%` }}></div>
+                        <div className="bg-blue-400 h-full opacity-30" style={{ width: `${c.taux_avancement}%` }}></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {chantiersARisque.length > 2 && (
+                <button onClick={() => navigateTo('chantiers')} className="w-full py-2 text-sm font-bold text-indigo-600 hover:text-indigo-800 transition-colors">
+                  Voir les {chantiersARisque.length - 2} autres alertes →
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* 3. MAIN CONTENT: CHART & ACTIONS */}

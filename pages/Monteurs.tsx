@@ -145,7 +145,7 @@ const Monteurs: React.FC = () => {
         date_debut_contrat: formData.date_debut_contrat || new Date().toISOString().split('T')[0],
         type_contrat: (formData.type_contrat as TypeContrat) || 'CDD',
         role_monteur: (formData.role_monteur as RoleMonteur) || 'OUVRIER',
-        salaire_jour: Number(formData.salaire_jour) || 100,
+        salaire_jour: formData.salaire_jour !== undefined ? Number(formData.salaire_jour) : 100,
         actif: formData.actif !== false,
         scan_cin_recto: formData.scan_cin_recto || null,
         scan_cin_verso: formData.scan_cin_verso || null,
@@ -712,8 +712,8 @@ const Monteurs: React.FC = () => {
                         <input
                           type="number"
                           className="w-full border border-gray-300 rounded-lg px-3 py-2 disabled:bg-gray-100 font-bold text-red-700"
-                          value={formData.salaire_jour || 0}
-                          onChange={e => setFormData({ ...formData, salaire_jour: Number(e.target.value) })}
+                          value={formData.salaire_jour !== undefined ? formData.salaire_jour : ''}
+                          onChange={e => setFormData({ ...formData, salaire_jour: e.target.value === '' ? undefined : Number(e.target.value) })}
                           disabled={isSaving}
                         />
                       </div>
