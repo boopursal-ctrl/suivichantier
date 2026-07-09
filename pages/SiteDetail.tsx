@@ -556,6 +556,24 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
   const handleOpenIndemnities = (worker: UnifiedWorker) => {
     if (!chantier) return;
 
+    // Check if indemnities already exist for this worker
+    const workerId = worker.type === 'PERMANENT' ? String(worker.matricule) : worker.id;
+    const existingIndemnities = costs.filter(c =>
+      c.related_monteur_id === workerId &&
+      (c.commentaire?.includes('Indemnité') || c.commentaire?.includes('Transport en Commun'))
+    );
+
+    if (existingIndemnities.length > 0) {
+      const totalExisting = existingIndemnities.reduce((s, c) => s + Number(c.montant_reel || 0), 0);
+      if (!confirm(
+        `⚠️ ${worker.nom} a déjà ${existingIndemnities.length} indemnité(s) enregistrée(s) pour un total de ${totalExisting} DH.\n\n` +
+        `Voulez-vous vraiment en ajouter de nouvelles ?\n` +
+        `(Cliquez "Annuler" pour éviter les doublons)`
+      )) {
+        return;
+      }
+    }
+
     // Normalize Cities
     const workerCity = (worker.ville_residence || '').trim().toLowerCase();
     const siteCityRaw = chantier.ville_code || '';
@@ -577,7 +595,7 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
     const hebergementRate = isSameCity ? 0 : 100;
 
     setIndemnityForm({
-      workerId: worker.type === 'PERMANENT' ? String(worker.matricule) : worker.id,
+      workerId: workerId,
       workerName: worker.nom,
       days: days,
       transportRate: transportLocalRate,
@@ -1635,42 +1653,162 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
               </button>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse whitespace-nowrap md:whitespace-normal">
-                <thead>
-                  <tr className="border-b border-gray-200 text-gray-500 text-sm">
-                    <th className="py-3 font-medium">Type</th>
-                    <th className="py-3 font-medium">Détail</th>
-                    <th className="py-3 font-medium text-right">Montant</th>
-                    <th className="py-3 text-right"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {costs.map(cost => (
-                    <tr key={cost.id_cout} className="hover:bg-gray-50">
-                      <td className="py-4 font-medium capitalize">
-                        <span className="bg-gray-100 px-2 py-1 rounded text-xs text-gray-700">{cost.type_cout.replace('_', ' ')}</span>
-                      </td>
-                      <td className="py-4 text-sm text-gray-500">
-                        {cost.quantite} x {formatCurrency(Number(cost.cout_unitaire || 0))}
-                        {cost.commentaire && <div className="text-xs italic text-gray-400 mt-1">{cost.commentaire}</div>}
-                      </td>
-                      <td className="py-4 text-right font-bold text-gray-900">{formatCurrency(cost.montant_reel)}</td>
-                      <td className="py-4 text-right">
-                        <button onClick={() => deleteCout(cost.id_cout)} className="text-gray-400 hover:text-red-600">
-                          <Trash2 size={16} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                  {costs.length === 0 && (
-                    <tr>
-                      <td colSpan={4} className="py-8 text-center text-gray-500 italic">Aucune dépense enregistrée.</td>
-                    </tr>
+            {costs.length === 0 ? (
+              <div className="text-center py-12 text-gray-400 italic bg-white rounded-xl border border-gray-100">
+                Aucune dépense enregistrée.
+              </div>
+            ) : (() => {
+              // Group costs by related_monteur_id
+              const grouped: Record<string, typeof costs> = {};
+              const generalCosts: typeof costs = [];
+
+              costs.forEach(cost => {
+                const key = cost.related_monteur_id;
+                if (key && key.trim() !== '') {
+                  if (!grouped[key]) grouped[key] = [];
+                  grouped[key].push(cost);
+                } else {
+                  generalCosts.push(cost);
+                }
+              });
+
+              // Helper to find worker name from ID
+              const getWorkerName = (id: string): { nom: string; type: string; matricule?: string | number } => {
+                // Check permanent staff
+                const perm = workers.find(w => String(w.matricule) === id);
+                if (perm) return { nom: perm.nom_monteur, type: 'Permanent', matricule: perm.matricule };
+
+                // Check local workers
+                const local = (chantier?.monteurs_locaux || []).find(ml => ml.id === id);
+                if (local) return { nom: local.nom_complet, type: local.type === 'PREVU' ? 'Prévu' : 'Intérimaire' };
+
+                return { nom: `ID: ${id}`, type: 'Inconnu' };
+              };
+
+              const totalGeneral = costs.reduce((s, c) => s + Number(c.montant_reel || 0), 0);
+
+              return (
+                <div className="space-y-6">
+                  {/* Summary banner */}
+                  <div className="bg-gradient-to-r from-slate-800 to-slate-700 text-white rounded-xl p-5 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-slate-300 font-medium">Total Dépenses</p>
+                      <p className="text-2xl font-black">{formatCurrency(totalGeneral)}</p>
+                    </div>
+                    <div className="flex gap-6 text-sm">
+                      <div className="text-center">
+                        <p className="text-slate-400">Par Collaborateur</p>
+                        <p className="font-bold text-lg">{Object.keys(grouped).length}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-slate-400">Générales</p>
+                        <p className="font-bold text-lg">{generalCosts.length}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Grouped by worker */}
+                  {Object.entries(grouped).map(([workerId, workerCosts]) => {
+                    const worker = getWorkerName(workerId);
+                    const subtotal = workerCosts.reduce((s, c) => s + Number(c.montant_reel || 0), 0);
+
+                    return (
+                      <div key={workerId} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                        {/* Worker header */}
+                        <div className="flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-200">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center">
+                              <Users className="w-4 h-4 text-blue-600" />
+                            </div>
+                            <div>
+                              <p className="font-bold text-gray-900">{worker.nom}</p>
+                              <div className="flex items-center gap-2">
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                                  worker.type === 'Permanent' ? 'bg-blue-100 text-blue-700' :
+                                  worker.type === 'Intérimaire' ? 'bg-orange-100 text-orange-700' :
+                                  'bg-gray-100 text-gray-600'
+                                }`}>{worker.type}</span>
+                                {worker.matricule && <span className="text-xs text-gray-400 font-mono">Mat: {worker.matricule}</span>}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs text-gray-400 font-medium">{workerCosts.length} dépense{workerCosts.length > 1 ? 's' : ''}</p>
+                            <p className="font-black text-gray-900">{formatCurrency(subtotal)}</p>
+                          </div>
+                        </div>
+
+                        {/* Worker expenses */}
+                        <table className="w-full text-left">
+                          <tbody className="divide-y divide-gray-50">
+                            {workerCosts.map(cost => (
+                              <tr key={cost.id_cout} className="hover:bg-gray-50 transition-colors">
+                                <td className="px-5 py-3 w-40">
+                                  <span className="bg-gray-100 px-2 py-1 rounded text-xs text-gray-700 font-medium capitalize">{cost.type_cout.replace(/_/g, ' ')}</span>
+                                </td>
+                                <td className="px-5 py-3 text-sm text-gray-500">
+                                  {cost.quantite} x {formatCurrency(Number(cost.cout_unitaire || 0))}
+                                  {cost.commentaire && <div className="text-xs italic text-gray-400 mt-0.5">{cost.commentaire}</div>}
+                                </td>
+                                <td className="px-5 py-3 text-right font-bold text-gray-900 w-32">{formatCurrency(cost.montant_reel)}</td>
+                                <td className="px-5 py-3 text-right w-12">
+                                  <button onClick={() => deleteCout(cost.id_cout)} className="text-gray-300 hover:text-red-600 transition-colors">
+                                    <Trash2 size={15} />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })}
+
+                  {/* General expenses (not linked to any worker) */}
+                  {generalCosts.length > 0 && (
+                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                      <div className="flex items-center justify-between px-5 py-3 bg-amber-50 border-b border-amber-100">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center">
+                            <Wallet className="w-4 h-4 text-amber-600" />
+                          </div>
+                          <div>
+                            <p className="font-bold text-gray-900">Dépenses Générales</p>
+                            <p className="text-xs text-gray-400">Non liées à un collaborateur</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-gray-400 font-medium">{generalCosts.length} dépense{generalCosts.length > 1 ? 's' : ''}</p>
+                          <p className="font-black text-gray-900">{formatCurrency(generalCosts.reduce((s, c) => s + Number(c.montant_reel || 0), 0))}</p>
+                        </div>
+                      </div>
+
+                      <table className="w-full text-left">
+                        <tbody className="divide-y divide-gray-50">
+                          {generalCosts.map(cost => (
+                            <tr key={cost.id_cout} className="hover:bg-gray-50 transition-colors">
+                              <td className="px-5 py-3 w-40">
+                                <span className="bg-gray-100 px-2 py-1 rounded text-xs text-gray-700 font-medium capitalize">{cost.type_cout.replace(/_/g, ' ')}</span>
+                              </td>
+                              <td className="px-5 py-3 text-sm text-gray-500">
+                                {cost.quantite} x {formatCurrency(Number(cost.cout_unitaire || 0))}
+                                {cost.commentaire && <div className="text-xs italic text-gray-400 mt-0.5">{cost.commentaire}</div>}
+                              </td>
+                              <td className="px-5 py-3 text-right font-bold text-gray-900 w-32">{formatCurrency(cost.montant_reel)}</td>
+                              <td className="px-5 py-3 text-right w-12">
+                                <button onClick={() => deleteCout(cost.id_cout)} className="text-gray-300 hover:text-red-600 transition-colors">
+                                  <Trash2 size={15} />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   )}
-                </tbody>
-              </table>
-            </div>
+                </div>
+              );
+            })()}
           </div>
         )}
 
