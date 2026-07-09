@@ -1511,7 +1511,7 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
                           <div className="flex items-center bg-gray-100 rounded-lg p-1 mt-1">
                             <button onClick={() => handleModifyDays(w, -1)} className="w-6 h-6 flex items-center justify-center hover:bg-white rounded hover:shadow-sm text-gray-600"><Minus size={12} /></button>
                             <span className="w-12 text-center font-mono font-bold text-sm bg-white mx-1 rounded shadow-sm" title="Jours ouvrés calculés">
-                              {w.type === 'PERMANENT' ? countWorkDays(w.date_debut, w.date_fin || new Date().toISOString().split('T')[0]) : w.jours_prevus}j
+                              {w.jours_prevus}j
                             </span>
                             <button onClick={() => handleModifyDays(w, 1)} className="w-6 h-6 flex items-center justify-center hover:bg-white rounded hover:shadow-sm text-gray-600"><Plus size={12} /></button>
                           </div>
@@ -1519,11 +1519,11 @@ const SiteDetail: React.FC<SiteDetailProps> = ({ chantierId, onBack }) => {
                           {/* Affichage du Réel (Pointage) */}
                           <div className={cn(
                             "text-[10px] font-bold px-1.5 py-0.5 rounded-full mt-1 flex items-center gap-1",
-                            (w.jours_pointes || 0) > (w.type === 'PERMANENT' ? countWorkDays(w.date_debut, w.date_fin || new Date().toISOString().split('T')[0]) : (w.jours_prevus || 0))
+                            (w.jours_pointes || 0) > (w.jours_prevus || 0)
                               ? "bg-red-50 text-red-600 border border-red-100"
                               : "bg-emerald-50 text-emerald-600 border border-emerald-100"
                           )}>
-                            {(w.jours_pointes || 0) > (w.type === 'PERMANENT' ? countWorkDays(w.date_debut, w.date_fin || new Date().toISOString().split('T')[0]) : (w.jours_prevus || 0)) && <AlertTriangle size={10} />}
+                            {(w.jours_pointes || 0) > (w.jours_prevus || 0) && <AlertTriangle size={10} />}
                             RÉEL: {w.jours_pointes || 0}j
                           </div>
                         </div>
